@@ -1,0 +1,1108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="먼저 떠난 이를 기억하는 사람들이 함께 머무는 3D 추모 정원">
+<title>그리움의 정원</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap">
+<style>
+[hidden]{display:none!important}
+/* Layout: full-screen 3D world (garden at night, or a warm room inside the World Tree); glass panels float at the edges. Single dark look by choice. */
+:root {
+  --night: #0d1220;
+  --paper: #efe6d4;
+  --mist: #a9b3c9;
+  --ember: #f2b45a;
+  --glass: rgba(16, 22, 38, 0.8);
+  --line: rgba(169, 179, 201, 0.22);
+  --display: "Gowun Batang", "Nanum Myeongjo", "Apple SD Gothic Neo", serif;
+  --body: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--night); color: var(--paper); font-family: var(--body); overflow: hidden; }
+#scene { position: fixed; inset: 0; display: block; touch-action: none; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+
+.hud-top {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 5;
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 14px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  pointer-events: none;
+}
+.brand { min-width: 0; }
+.brand h1 { font-family: var(--display); font-weight: 700; font-size: 1.35rem; margin: 0; letter-spacing: 0.02em; text-shadow: 0 2px 12px rgba(0,0,0,.6); }
+.brand p { margin: 2px 0 0; font-size: 0.82rem; color: var(--mist); max-width: 46ch; line-height: 1.5; text-shadow: 0 1px 8px #000; }
+.stats { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.chip { pointer-events: auto; background: var(--glass); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 0.8rem; color: var(--mist); backdrop-filter: blur(6px); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chip b { color: var(--ember); font-weight: 400; }
+
+.chat {
+  position: fixed; z-index: 6; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
+  width: min(320px, calc(100% - 32px)); background: var(--glass); border: 1px solid var(--line); border-radius: 14px; backdrop-filter: blur(8px);
+  display: grid; overflow: hidden;
+}
+.chat-head { display: flex; justify-content: space-between; align-items: center; background: none; border: none; padding: 9px 12px; font-size: .82rem; color: var(--mist); text-align: left; }
+.chat-head b { color: var(--ember); font-weight: 400; }
+.chat-body { display: grid; gap: 8px; padding: 0 10px 10px; }
+.chat.closed .chat-body { display: none; }
+.chat-log { max-height: 180px; overflow-y: auto; display: grid; gap: 4px; align-content: start; font-size: .86rem; line-height: 1.5; }
+.chat-log .ln { overflow-wrap: anywhere; }
+.chat-log .ln b { font-weight: 400; color: var(--ember); margin-right: 6px; }
+.chat-log .ln.me b { color: var(--paper); }
+@media (max-width: 560px) { .chat { bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); } .chat-log { max-height: 110px; } }
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  display: flex; justify-content: center; flex-wrap: wrap; gap: 8px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  pointer-events: none;
+}
+.hint { width: 100%; text-align: center; font-size: 0.8rem; color: var(--mist); text-shadow: 0 1px 8px #000; }
+.act {
+  pointer-events: auto; background: var(--glass); border: 1px solid var(--line);
+  border-radius: 14px; padding: 10px 16px; font-size: 0.95rem; backdrop-filter: blur(6px);
+  transition: border-color .2s, background .2s, opacity .2s;
+}
+.act:hover:not(:disabled) { border-color: var(--ember); background: rgba(40, 32, 22, .85); }
+.act:disabled { opacity: .45; cursor: default; }
+.act.primary { border-color: rgba(242,180,90,.55); }
+
+.panel {
+  position: fixed; z-index: 10; right: 0; top: 0; bottom: 0; width: min(380px, 100%);
+  background: var(--glass); border-left: 1px solid var(--line); backdrop-filter: blur(10px);
+  display: flex; flex-direction: column; box-sizing: border-box;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 18px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  padding-left: 18px; padding-right: max(18px, env(safe-area-inset-right, 0px));
+  gap: 14px; transform: translateX(105%); transition: transform .35s ease; overflow-y: auto;
+}
+.panel.open { transform: none; }
+.panel header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.panel h2 { font-family: var(--display); font-size: 1.2rem; margin: 0; }
+.panel .sub { margin: -6px 0 0; font-size: .82rem; color: var(--mist); line-height: 1.6; }
+.x { background: none; border: 1px solid var(--line); border-radius: 10px; padding: 4px 10px; color: var(--mist); flex: none; }
+form { display: grid; gap: 8px; }
+label { font-size: 0.78rem; color: var(--mist); letter-spacing: .04em; }
+input, textarea {
+  width: 100%; box-sizing: border-box; background: rgba(0,0,0,.25); border: 1px solid var(--line);
+  border-radius: 10px; color: var(--paper); font: inherit; padding: 9px 11px;
+}
+input[type=file] { padding: 7px; font-size: .82rem; }
+textarea { min-height: 84px; resize: vertical; line-height: 1.6; }
+.list { display: grid; gap: 10px; align-content: start; }
+.letter { background: rgba(239,230,212,.06); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+.letter .to { font-family: var(--display); color: var(--ember); font-size: 0.95rem; }
+.letter p { margin: 6px 0 8px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.meta { font-size: 0.75rem; color: var(--mist); }
+.foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.heart { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; font-size: .8rem; color: var(--mist); font-variant-numeric: tabular-nums; flex: none; }
+.heart:hover { border-color: var(--ember); color: var(--paper); }
+.heart.on { border-color: var(--ember); color: var(--ember); background: rgba(242,180,90,.1); }
+.letter.top { border-color: rgba(242,180,90,.45); }
+.sort { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: .8rem; color: var(--mist); }
+.seg.on { border-color: var(--ember); color: var(--paper); }
+.empty { color: var(--mist); font-size: 0.9rem; line-height: 1.7; }
+.mem { display: grid; grid-template-columns: 52px 1fr; gap: 12px; align-items: center; text-align: left; background: rgba(239,230,212,.06); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.mem:hover { border-color: var(--ember); }
+.mem img, .portrait { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; background: #2a2620; }
+.mem div { min-width: 0; }
+.mem strong { display: block; font-family: var(--display); font-weight: 700; }
+.mem span { font-size: .78rem; color: var(--mist); }
+.mem .cnt { display: block; font-style: normal; font-size: .76rem; color: var(--ember); }
+.mem .cnt:empty { display: none; }
+details { border-top: 1px solid var(--line); padding-top: 12px; }
+summary { cursor: pointer; font-family: var(--display); color: var(--ember); }
+details form { margin-top: 10px; }
+
+.overlay {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+  background: radial-gradient(ellipse at 50% 60%, rgba(26,34,56,.55), rgba(8,11,20,.92));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.card { max-width: 420px; width: 100%; display: grid; gap: 14px; text-align: center; }
+.card h2 { font-family: var(--display); font-size: 2rem; margin: 0; text-wrap: balance; }
+.card p { color: var(--mist); line-height: 1.8; margin: 0; }
+.card .act { font-size: 1rem; padding: 12px; }
+.read { max-width: 440px; text-align: left; background: var(--glass); border: 1px solid var(--line); border-radius: 18px; padding: 22px; box-sizing: border-box; }
+.read .to { font-family: var(--display); font-size: 1.25rem; color: var(--ember); }
+.read p { color: var(--paper); white-space: pre-wrap; overflow-wrap: anywhere; }
+.read { max-height: calc(100vh - 48px); overflow-y: auto; }
+.comments { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 10px; }
+.clist { display: grid; gap: 8px; max-height: 240px; overflow-y: auto; }
+.cmt { background: rgba(239,230,212,.05); border-radius: 10px; padding: 8px 11px; min-width: 0; }
+.cmt b { font-weight: 400; color: var(--ember); font-size: .8rem; }
+.cmt span { color: var(--mist); font-size: .72rem; margin-left: 6px; }
+.cmt div { margin-top: 3px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cform { grid-template-columns: 1fr auto; display: grid; gap: 8px; }
+.cform .act { padding: 8px 14px; font-size: .88rem; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.cbtn { background: none; border: none; color: var(--mist); font-size: .8rem; padding: 4px 6px; }
+.cbtn:hover { color: var(--paper); }
+.cmt.reply { margin-left: 22px; border-left: 2px solid rgba(242,180,90,.35); border-radius: 0 10px 10px 0; }
+.cmt .cbtn { padding: 2px 0; margin-top: 2px; font-size: .74rem; }
+.replying { display: flex; justify-content: space-between; align-items: center; font-size: .8rem; color: var(--ember); }
+.row { display: flex; gap: 8px; }
+.me-setup { display: flex; gap: 14px; align-items: center; text-align: left; }
+.face-pick { width: 76px; height: 76px; border-radius: 50%; border: 1px dashed var(--mist); display: grid; place-items: center; overflow: hidden; cursor: pointer; flex: none; font-size: .72rem; color: var(--mist); text-align: center; line-height: 1.4; }
+.face-pick img { width: 100%; height: 100%; object-fit: cover; }
+.outfit { display: grid; gap: 6px; min-width: 0; justify-items: start; }
+.outfit .lbl { font-size: .78rem; color: var(--mist); }
+.swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+.sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; padding: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,.3); }
+.sw[aria-checked="true"] { border-color: var(--ember); }
+.row .act { flex: 1; }
+.toast { position: fixed; left: 50%; top: 84px; transform: translateX(-50%); z-index: 15; background: var(--glass); border: 1px solid var(--ember); border-radius: 999px; padding: 8px 16px; font-size: .88rem; opacity: 0; transition: opacity .3s; pointer-events: none; max-width: calc(100% - 32px); text-align: center; }
+.toast.show { opacity: 1; }
+.warp { position: fixed; inset: 0; z-index: 18; pointer-events: none; opacity: 0; transition: opacity .45s ease; background: radial-gradient(circle at 50% 55%, rgba(255,214,150,.95), rgba(242,180,90,.6) 30%, rgba(13,18,32,1) 75%); }
+.warp.on { opacity: 1; }
+@media (max-width: 560px) { .brand p { display: none; } .act { padding: 9px 12px; font-size: .88rem; } .stats .chip:nth-child(n+2) { display: none; } }
+@media (prefers-reduced-motion: reduce) { .panel, .toast, .act { transition: none; } }
+</style>
+</head>
+<body>
+
+<canvas id="scene" aria-label="추모 정원 3D 공간"></canvas>
+
+<div class="hud-top">
+  <div class="brand">
+    <h1 id="title">그리움의 정원</h1>
+    <p id="subtitle">먼저 떠난 이를 기억하는 사람들이 함께 머무는 곳</p>
+  </div>
+  <div class="stats">
+    <span class="chip">함께 있는 사람 <b id="stPeople">1</b></span>
+    <span class="chip">촛불 <b id="stCandles">0</b></span>
+    <span class="chip">꽃 <b id="stFlowers">0</b></span>
+  </div>
+</div>
+
+<section class="chat" id="chat" hidden aria-label="채팅">
+  <button type="button" class="chat-head" id="chatToggle" aria-expanded="true"><span id="chatHeadText">함께 이야기 나누기</span><b id="chatNew"></b></button>
+  <div class="chat-body" id="chatBody">
+    <div class="chat-log" id="chatLog" aria-live="polite"></div>
+    <form class="cform" id="chatForm">
+      <label for="chatText" class="sr">채팅</label>
+      <input id="chatText" maxlength="120" placeholder="Enter로 대화하기" autocomplete="off">
+      <button class="act" type="submit">보내기</button>
+    </form>
+  </div>
+</section>
+
+<div class="dock">
+  <div class="hint" id="hint">땅을 눌러 걷거나 WASD로 움직이세요. 드래그하면 시선이 돌아갑니다.</div>
+  <button class="act primary" id="btnCandle" disabled>촛불 밝히기</button>
+  <button class="act" id="btnFlower" disabled>국화 한 송이</button>
+  <button class="act" id="btnHold" aria-pressed="false">촛불 들기</button>
+  <button class="act" id="btnLetters">사연과 편지</button>
+  <button class="act" id="btnTree">개인 추모 공간</button>
+  <button class="act" id="btnBack" hidden>공용 추모 공간으로</button>
+</div>
+
+<aside class="panel" id="letterPanel" aria-label="편지함">
+  <header><h2 id="letterTitle">하늘로 보내는 편지</h2><button class="x" data-close="letterPanel">닫기</button></header>
+  <form id="letterForm">
+    <label for="fTo">받는 분</label>
+    <input id="fTo" maxlength="30" placeholder="예: 우리 엄마, 보고 싶은 민수에게" required>
+    <label for="fMsg">전하고 싶은 말</label>
+    <textarea id="fMsg" maxlength="600" placeholder="오늘 하고 싶었던 이야기를 적어 주세요." required></textarea>
+    <button class="act primary" type="submit" id="letterSubmit">연못에 등불로 띄우기</button>
+  </form>
+  <div class="sort" role="group" aria-label="정렬">
+    <button type="button" class="seg on" id="sortHeart">공감순</button>
+    <button type="button" class="seg" id="sortNew">최신순</button>
+  </div>
+  <div class="list" id="letters"></div>
+</aside>
+
+<aside class="panel" id="treePanel" aria-label="개인 추모 공간">
+  <header><h2>개인 추모 공간</h2><button class="x" data-close="treePanel">닫기</button></header>
+  <p class="sub">공용 추모 공간 안, 세계수에 맺힌 빛 하나하나가 한 사람을 위한 공간입니다. 빛을 누르거나 아래 목록에서 골라 들어가면 그분만을 위한 촛불과 편지가 모여 있어요.</p>
+  <div class="list" id="memList"></div>
+  <details id="createBox">
+    <summary>기억할 분 추가하기</summary>
+    <form id="memForm">
+      <label for="mName">기억할 분의 이름</label>
+      <input id="mName" maxlength="20" required placeholder="예: 김순자">
+      <label for="mYears">함께한 시간</label>
+      <input id="mYears" maxlength="30" placeholder="예: 1948 – 2025">
+      <label for="mIntro">이분을 한 줄로 소개한다면</label>
+      <input id="mIntro" maxlength="60" placeholder="예: 된장찌개를 제일 잘 끓이던 우리 할머니">
+      <label for="mPhoto">사진 (선택)</label>
+      <input id="mPhoto" type="file" accept="image/*">
+      <button class="act primary" type="submit">세계수에 기억 걸기</button>
+    </form>
+  </details>
+</aside>
+
+<div class="overlay" id="welcome">
+  <div class="card">
+    <h2>그리움의 정원</h2>
+    <p>소중한 사람을 잃은 모두가 함께 머무는 공용 추모 공간입니다. 제단에 촛불을 밝히고 서로의 사연에 공감해 주세요. 한 사람만을 위한 공간은 정원 안 세계수에 있어요.</p>
+    <label for="fName">이 정원에서 쓸 이름</label>
+    <input id="fName" maxlength="16" placeholder="예: 봄비">
+    <div class="me-setup">
+      <label class="face-pick" for="fFace" title="얼굴 사진 고르기">
+        <img id="facePreview" alt="" hidden>
+        <span id="faceEmpty">내 사진<br>(선택)</span>
+      </label>
+      <input id="fFace" type="file" accept="image/*" hidden>
+      <div class="outfit">
+        <span class="lbl">성별</span>
+        <div class="sort" role="radiogroup" aria-label="성별" id="sexPick"></div>
+        <span class="lbl">나이대</span>
+        <div class="sort" role="radiogroup" aria-label="나이대" id="agePick"></div>
+        <span class="lbl">옷 색</span>
+        <div class="swatches" id="swatches" role="radiogroup" aria-label="옷 색"></div>
+        <button type="button" class="seg" id="faceClear" hidden>사진 빼기</button>
+      </div>
+    </div>
+    <button class="act primary" id="enter">정원에 들어가기</button>
+  </div>
+</div>
+
+<div class="overlay" id="reader" hidden>
+  <div class="card read">
+    <div class="to" id="rTo"></div>
+    <p id="rMsg"></p>
+    <div class="meta" id="rMeta"></div>
+    <section class="comments" id="rComments" hidden aria-label="댓글">
+      <div class="clist" id="cList"></div>
+      <div class="replying" id="replying" hidden><span id="replyingTo"></span><button type="button" class="cbtn" id="replyCancel">취소</button></div>
+      <form id="cForm" class="cform">
+        <label for="cText" class="sr">댓글</label>
+        <input id="cText" maxlength="200" placeholder="따뜻한 한마디를 남겨 주세요" autocomplete="off">
+        <button class="act" type="submit">남기기</button>
+      </form>
+    </section>
+    <div class="row"><button class="act" id="rClose">닫기</button><button class="act primary" id="rHeart" hidden>공감해요</button><button class="act primary" id="rEnter" hidden>방에 들어가기</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="warp" id="warp" aria-hidden="true"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.2.1/bundles/stomp.umd.min.js"></script>
+<script src="config.js"></script>
+<script src="js/net.js"></script>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('show'),2800); }
+function hueOf(s){ let h=0; for (const c of s) h=(h*31+c.charCodeAt(0))%360; return h; }
+function fmtDate(t){ if(!t) return ''; const d=new Date(t); return `${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()}`; }
+function newId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+const validId = s => /^[a-z0-9]{6,30}$/.test(s || '');
+
+/* ---------- renderer & scene ---------- */
+const canvas = $('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 220);
+function resize(){ renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+function glowTexture(r,g,b){
+  const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d');
+  const gr=x.createRadialGradient(32,32,0,32,32,32);
+  gr.addColorStop(0,`rgba(${r},${g},${b},1)`); gr.addColorStop(.25,`rgba(${r},${g},${b},.45)`); gr.addColorStop(1,`rgba(${r},${g},${b},0)`);
+  x.fillStyle=gr; x.fillRect(0,0,64,64); return new THREE.CanvasTexture(c);
+}
+const emberTex = glowTexture(255,190,110), paleTex = glowTexture(200,220,255), leafTex = glowTexture(170,235,215);
+function glow(tex, size, opacity=1){ const s=new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity })); s.scale.set(size,size,1); return s; }
+function textSprite(text, w=2, fs=28){
+  const c=document.createElement('canvas'); c.width=256; c.height=64; const x=c.getContext('2d');
+  x.font=`${fs}px "Gowun Dodum", sans-serif`; x.textAlign='center'; x.textBaseline='middle';
+  const tw=Math.min(250, x.measureText(text).width+28); x.fillStyle='rgba(13,18,32,.6)'; x.beginPath();
+  if (x.roundRect) x.roundRect(128-tw/2,10,tw,44,22); else x.rect(128-tw/2,10,tw,44); x.fill();
+  x.fillStyle='#efe6d4'; x.fillText(text,128,33);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(c), transparent:true, depthWrite:false })); s.scale.set(w,w/4,1); return s;
+}
+
+/* shared materials */
+const stoneMat = new THREE.MeshLambertMaterial({ color: 0x4a4c57 });
+const trunkMat = new THREE.MeshLambertMaterial({ color: 0x3b2e28 });
+const barkMat = new THREE.MeshLambertMaterial({ color: 0x4a3a30, emissive: 0x120b06 });
+
+/* =================== GARDEN =================== */
+const garden = new THREE.Group(); scene.add(garden);
+garden.add(new THREE.HemisphereLight(0x5a6c9c, 0x10121a, 0.55));
+{ const moon = new THREE.DirectionalLight(0x9fb2e0, 0.45); moon.position.set(-20, 30, -10); garden.add(moon); }
+const altarLight = new THREE.PointLight(0xf2b45a, 1.4, 16, 2); altarLight.position.set(0, 2.2, 0.8); garden.add(altarLight);
+
+const ground = new THREE.Mesh(new THREE.CircleGeometry(60, 64), new THREE.MeshLambertMaterial({ color: 0x1b2a26 }));
+ground.rotation.x = -Math.PI/2; garden.add(ground);
+const plaza = new THREE.Mesh(new THREE.CircleGeometry(6.5, 48), new THREE.MeshLambertMaterial({ color: 0x3a3c45 }));
+plaza.rotation.x = -Math.PI/2; plaza.position.y = 0.01; garden.add(plaza);
+for (let i=0;i<9;i++){ const s=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.75,0.06,10), stoneMat); s.position.set(Math.sin(i*.2)*0.6, 0.03, 7.5+i*1.6); s.rotation.y=i; garden.add(s); }
+for (let i=0;i<3;i++){ const s=new THREE.Mesh(new THREE.CylinderGeometry(0.65,0.7,0.06,10), stoneMat); s.position.set(Math.sin(i)*.4, 0.03, -4.3-i*1.3); s.rotation.y=i; garden.add(s); }
+
+/* shared altar */
+const plinth = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.3, 0.45, 40), new THREE.MeshLambertMaterial({ color: 0x55545c }));
+plinth.position.y = 0.22; garden.add(plinth);
+const stele = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), new THREE.MeshLambertMaterial({ color: 0x6b6a73 }));
+stele.scale.set(0.95, 1.55, 0.38); stele.position.set(0, 1.85, -0.6); garden.add(stele);
+const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.035, 8, 48), new THREE.MeshBasicMaterial({ color: 0xf2c27a }));
+ring.position.set(0, 2.05, -0.22); garden.add(ring);
+const ringGlow = glow(emberTex, 2.4, .55); ringGlow.position.copy(ring.position); garden.add(ringGlow);
+
+/* the World Tree: a gathering square under a wide, low canopy. People stand around it holding candles; the more candles, the brighter it glows.
+   Each personal memorial space hangs from its branches as a named light; the doorway in the trunk leads inside. */
+const TREE = { x: 0, z: -17, door: { x: 0, z: -14.5 }, plaza: 9.5 };
+const worldTree = new THREE.Group(); worldTree.position.set(TREE.x, 0, TREE.z); garden.add(worldTree);
+const treeLeaves = [];
+const treeLight = new THREE.PointLight(0xffd59a, .6, 26, 2); treeLight.position.set(0, 7, 0); worldTree.add(treeLight);
+{
+  const sq = new THREE.Mesh(new THREE.CircleGeometry(TREE.plaza, 64), new THREE.MeshLambertMaterial({ color: 0x343640 })); sq.rotation.x=-Math.PI/2; sq.position.y=.012; worldTree.add(sq);
+  const edge = new THREE.Mesh(new THREE.RingGeometry(TREE.plaza-.25, TREE.plaza, 64), new THREE.MeshBasicMaterial({ color: 0x55525a })); edge.rotation.x=-Math.PI/2; edge.position.y=.02; worldTree.add(edge);
+  const inner = new THREE.Mesh(new THREE.RingGeometry(3.4, 3.6, 64), new THREE.MeshBasicMaterial({ color: 0x8a7650 })); inner.rotation.x=-Math.PI/2; inner.position.y=.02; worldTree.add(inner);
+  const tr = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 2.4, 7.5, 16), barkMat); tr.position.y = 3.75; worldTree.add(tr);
+  for (let i=0;i<8;i++){ const a=i/8*Math.PI*2+.2; if (Math.abs(Math.sin(a)-1) < .15) continue; const root=new THREE.Mesh(new THREE.CylinderGeometry(.22,.6,3.2,7), barkMat);
+    root.position.set(Math.cos(a)*2.4, .45, Math.sin(a)*2.4); root.rotation.z = Math.cos(a)*1.2; root.rotation.x = -Math.sin(a)*1.2; worldTree.add(root); }
+  const branchDirs = [[1,.45,.2],[-1,.5,.1],[.35,.5,1],[-.4,.45,-1],[.8,.6,-.7],[-.8,.6,.8],[.1,.4,-1]];
+  branchDirs.forEach(([x,y,z]) => { const b=new THREE.Mesh(new THREE.CylinderGeometry(.25,.7,6,7), barkMat); const v=new THREE.Vector3(x,y,z).normalize();
+    b.position.set(v.x*2.8, 6.6+v.y*2.6, v.z*2.8); b.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), v); worldTree.add(b); });
+  const crownMat = new THREE.MeshLambertMaterial({ color: 0x264a44, emissive: 0x0c2622 });
+  [[0,11.5,0,5],[4.6,10,1,3.6],[-4.6,10.3,-.5,3.8],[1,10,4.6,3.4],[-1,10.2,-4.6,3.5],[3.6,12.6,-3,3.2],[-3.6,12.6,3,3.2],[0,14.2,0,3.4]].forEach(([x,y,z,r]) => {
+    const m=new THREE.Mesh(new THREE.IcosahedronGeometry(r,1), crownMat); m.position.set(x,y,z); worldTree.add(m); });
+  for (let i=0;i<150;i++){ const g=glow(leafTex, .55, .55); const a=Math.random()*Math.PI*2, r=2+Math.random()*7; g.position.set(Math.cos(a)*r, 7+Math.random()*8, Math.sin(a)*r); g.userData.p=Math.random()*6; worldTree.add(g); treeLeaves.push(g); }
+  // lantern posts on the square's edge
+  for (let i=0;i<12;i++){ const a=i/12*Math.PI*2+Math.PI/12; const x=Math.cos(a)*(TREE.plaza-.6), z=Math.sin(a)*(TREE.plaza-.6);
+    const post=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,1.6,6), new THREE.MeshLambertMaterial({ color: 0x2a2a30 })); post.position.set(x,.8,z); worldTree.add(post);
+    const l=glow(emberTex, 1.3, .8); l.position.set(x,1.7,z); worldTree.add(l); }
+}
+const memorialFruits = new THREE.Group(); worldTree.add(memorialFruits);
+const fruitMeshes = [];
+
+/* surrounding pines & benches */
+const gardenColliders = [{ x:0, z:0, r:2.4 }, { x:TREE.x, z:TREE.z, r:2.6 }];
+const pineMat = new THREE.MeshLambertMaterial({ color: 0x1f3a33 });
+function pine(x,z,s){ const g=new THREE.Group(); const t=new THREE.Mesh(new THREE.CylinderGeometry(.15*s,.22*s,1.2*s,6),trunkMat); t.position.y=.6*s; g.add(t);
+  for(let k=0;k<3;k++){ const c=new THREE.Mesh(new THREE.ConeGeometry((1.3-k*.3)*s,1.6*s,7),pineMat); c.position.y=(1.4+k*.8)*s; g.add(c); }
+  g.position.set(x,0,z); garden.add(g); gardenColliders.push({x,z,r:.7*s}); }
+for (let i=0;i<34;i++){ const a=i/34*Math.PI*2+Math.random()*.1, r=24+Math.random()*10; pine(Math.cos(a)*r, Math.sin(a)*r, 1+Math.random()*1.2); }
+[[-7,-2],[-8,4],[7.5,-4],[-12,-12],[12,-14]].forEach(([x,z])=>pine(x,z,1.1+Math.random()*.4));
+const benchMat = new THREE.MeshLambertMaterial({ color: 0x5a4636 });
+function bench(parent, colls, x,z,ry){ const g=new THREE.Group(); const seat=new THREE.Mesh(new THREE.BoxGeometry(2,.12,.55),benchMat); seat.position.y=.5; g.add(seat);
+  [-.8,.8].forEach(dx=>{ const l=new THREE.Mesh(new THREE.BoxGeometry(.1,.5,.5),benchMat); l.position.set(dx,.25,0); g.add(l); });
+  g.position.set(x,0,z); g.rotation.y=ry; parent.add(g); colls.push({x,z,r:1}); }
+bench(garden, gardenColliders, -4.6, 4.2, 0.8); bench(garden, gardenColliders, 4.6, 4.2, -0.8);
+// benches in a ring around the World Tree, facing it, leaving the doorway and the path open
+for (let i=0;i<8;i++){ const a=i/8*Math.PI*2 + Math.PI/8; if (Math.sin(a) > .85 || Math.sin(a) < -.95) continue;
+  const r=6.6, x=TREE.x+Math.cos(a)*r, z=TREE.z+Math.sin(a)*r; bench(garden, gardenColliders, x, z, -a - Math.PI/2); }
+
+/* pond */
+const POND = { x: 13, z: 5, r: 5.5 };
+{ const water = new THREE.Mesh(new THREE.CircleGeometry(POND.r, 48), new THREE.MeshPhongMaterial({ color: 0x14223a, emissive: 0x060b16, shininess: 90, specular: 0x6688bb }));
+  water.rotation.x=-Math.PI/2; water.position.set(POND.x, .02, POND.z); garden.add(water);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(POND.r, .22, 6, 48), stoneMat); rim.rotation.x=-Math.PI/2; rim.position.set(POND.x,.05,POND.z); garden.add(rim); }
+gardenColliders.push({ x: POND.x, z: POND.z, r: POND.r + .1 });
+
+const flies = [];
+for (let i=0;i<60;i++){ const g=glow(i%3?emberTex:paleTex, .25, .9); g.position.set((Math.random()-.5)*40, .6+Math.random()*2.5, (Math.random()-.5)*40); g.userData={ p:Math.random()*10, o:g.position.clone() }; garden.add(g); flies.push(g); }
+{ const geo=new THREE.BufferGeometry(); const pts=[]; for(let i=0;i<700;i++){ const a=Math.random()*Math.PI*2, e=Math.random()*1.2+.15, R=140; pts.push(Math.cos(a)*Math.cos(e)*R, Math.sin(e)*R, Math.sin(a)*Math.cos(e)*R); }
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pts,3)); garden.add(new THREE.Points(geo,new THREE.PointsMaterial({ color:0xc8d2ec, size:.6, fog:false }))); }
+
+/* =================== PERSONAL MEMORIAL SPACE: an open hillside under the same night sky, the World Tree far on the horizon =================== */
+const roomG = new THREE.Group(); roomG.visible = false; scene.add(roomG);
+const ROOM = { bound: 40, altar: { x: 0, z: -4.6 } };
+const roomColliders = [{ x: 0, z: -5.4, r: 1.2 }, { x: 3.4, z: -6.4, r: .6 }];
+roomG.add(new THREE.HemisphereLight(0x7d8fbf, 0x141a14, 0.62));
+{ const moonL = new THREE.DirectionalLight(0xc8d4f0, .5); moonL.position.set(18, 30, -25); roomG.add(moonL); }
+const roomLight = new THREE.PointLight(0xf4b766, 1.6, 18, 2); roomLight.position.set(0, 3.2, -3.4); roomG.add(roomLight);
+const meadow = new THREE.Mesh(new THREE.CircleGeometry(90, 64), new THREE.MeshLambertMaterial({ color: 0x223a2c })); meadow.rotation.x=-Math.PI/2; roomG.add(meadow);
+{
+  // rolling hills on the horizon
+  const hillMat = new THREE.MeshLambertMaterial({ color: 0x1a2c26 });
+  for (let i=0;i<14;i++){ const a=i/14*Math.PI*2 + (i%3)*.15, r=48+(i%4)*7; const h=new THREE.Mesh(new THREE.SphereGeometry(14+(i%5)*4, 18, 10), hillMat);
+    h.scale.y = .32 + (i%3)*.08; h.position.set(Math.cos(a)*r, 0, Math.sin(a)*r); roomG.add(h); }
+  // the World Tree, far away on the horizon
+  const far = new THREE.Group(); far.position.set(-14, 0, -70); roomG.add(far);
+  const ft = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 2.4, 9, 10), new THREE.MeshLambertMaterial({ color: 0x241c18 })); ft.position.y = 4.5; far.add(ft);
+  const fc = new THREE.MeshLambertMaterial({ color: 0x1c3530, emissive: 0x0a1c18 });
+  [[0,13,0,6.5],[5,11,0,4.5],[-5,11.5,0,4.6],[0,16,0,4.2]].forEach(([x,y,z,r]) => { const m=new THREE.Mesh(new THREE.IcosahedronGeometry(r,1), fc); m.position.set(x,y,z); far.add(m); });
+  for (let i=0;i<40;i++){ const g=glow(leafTex, 1.2, .6); const a=Math.random()*Math.PI*2, r=Math.random()*7; g.position.set(Math.cos(a)*r, 9+Math.random()*9, 3); far.add(g); }
+  // moon and stars
+  const moon = new THREE.Mesh(new THREE.SphereGeometry(4, 24, 16), new THREE.MeshBasicMaterial({ color: 0xf1ead8, fog: false })); moon.position.set(40, 48, -90); roomG.add(moon);
+  const mg = glow(paleTex, 30, .5); mg.material.fog = false; mg.position.copy(moon.position); roomG.add(mg);
+  const geo=new THREE.BufferGeometry(); const pts=[]; for(let i=0;i<900;i++){ const a=Math.random()*Math.PI*2, e=Math.random()*1.2+.12, R=140; pts.push(Math.cos(a)*Math.cos(e)*R, Math.sin(e)*R, Math.sin(a)*Math.cos(e)*R); }
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pts,3)); roomG.add(new THREE.Points(geo,new THREE.PointsMaterial({ color:0xd6def4, size:.6, fog:false })));
+  // wildflowers glowing faintly in the grass
+  for (let i=0;i<220;i++){ const a=Math.random()*Math.PI*2, r=3+Math.random()*34; const f=glow(i%4?paleTex:emberTex, .28, .7); f.position.set(Math.cos(a)*r, .15, Math.sin(a)*r); roomG.add(f); }
+  // a young tree grown from the World Tree, beside the portrait
+  const sap = new THREE.Group(); sap.position.set(3.4, 0, -6.4); roomG.add(sap);
+  const st = new THREE.Mesh(new THREE.CylinderGeometry(.14,.24,2.6,8), barkMat); st.position.y=1.3; sap.add(st);
+  [[0,3,0,1.1],[.6,2.6,.2,.75],[-.6,2.7,-.1,.8]].forEach(([x,y,z,r]) => { const m=new THREE.Mesh(new THREE.IcosahedronGeometry(r,1), new THREE.MeshLambertMaterial({ color: 0x2f5a4c, emissive: 0x0e2a22 })); m.position.set(x,y,z); sap.add(m); });
+  for (let i=0;i<14;i++){ const g=glow(leafTex,.35,.8); const a=Math.random()*Math.PI*2; g.position.set(Math.cos(a)*1, 2.4+Math.random()*1.2, Math.sin(a)*1); sap.add(g); }
+  // stone path and a low stone table for offerings
+  for (let i=0;i<6;i++){ const p=new THREE.Mesh(new THREE.CylinderGeometry(.6,.65,.06,10), stoneMat); p.position.set(Math.sin(i*.5)*.3, .03, 6-i*1.5); p.rotation.y=i; roomG.add(p); }
+  const table = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.2, .7, 32), new THREE.MeshLambertMaterial({ color: 0x5c5a62 })); table.position.set(ROOM.altar.x, .35, ROOM.altar.z); roomG.add(table);
+  bench(roomG, roomColliders, -3.6, 1.8, .9); bench(roomG, roomColliders, 3.6, 1.8, -.9);
+}
+/* portrait frame: texture swapped per memorial */
+const portraitCanvas = document.createElement('canvas'); portraitCanvas.width = 256; portraitCanvas.height = 320;
+const portraitTex = new THREE.CanvasTexture(portraitCanvas);
+{
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(1.7, 2.1, .12), new THREE.MeshLambertMaterial({ color: 0x2a1d14 })); frame.position.set(0, 1.95, -5.9); roomG.add(frame);
+  const pic = new THREE.Mesh(new THREE.PlaneGeometry(1.45, 1.82), new THREE.MeshBasicMaterial({ map: portraitTex })); pic.position.set(0, 1.95, -5.83); roomG.add(pic);
+  const stand = new THREE.Mesh(new THREE.BoxGeometry(.12, 1.2, .12), new THREE.MeshLambertMaterial({ color: 0x2a1d14 })); stand.position.set(0, .6, -6); roomG.add(stand);
+}
+const roomNameSprite = { obj: null };
+const roomMotes = [];
+for (let i=0;i<70;i++){ const g=glow(i%2?emberTex:leafTex,.24,.8); g.position.set((Math.random()-.5)*44, .5+Math.random()*3, (Math.random()-.5)*44); g.userData={ p:Math.random()*10, o:g.position.clone() }; roomG.add(g); roomMotes.push(g); }
+
+function drawPortrait(m, img){
+  const x = portraitCanvas.getContext('2d'), W=256, H=320;
+  const hue = hueOf(m.name || '');
+  const gr = x.createLinearGradient(0,0,0,H); gr.addColorStop(0, `hsl(${hue},25%,32%)`); gr.addColorStop(1, `hsl(${hue},30%,16%)`);
+  x.fillStyle = gr; x.fillRect(0,0,W,H);
+  if (img) { const s = Math.max(W/img.width, H/img.height); const w=img.width*s, h=img.height*s; x.drawImage(img, (W-w)/2, (H-h)/2, w, h); }
+  else { const n=(m.name||'?').slice(0,6); x.fillStyle = '#efe6d4'; x.font = (n.length>3?48:64)+'px "Gowun Batang", serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(n, W/2, H/2); x.globalAlpha=.5; x.fillRect(W/2-30, H/2+48, 60, 2); x.globalAlpha=1; }
+  x.strokeStyle = 'rgba(0,0,0,.35)'; x.lineWidth = 6; x.strokeRect(3,3,W-6,H-6);
+  portraitTex.needsUpdate = true;
+}
+
+/* =================== AVATARS: small people, photo or drawn face, carrying a lantern =================== */
+const OUTFITS = [['먹색','#3b3f4a'],['흰옷','#e6e0d2'],['남색','#2f4a7a'],['쑥색','#6b7f5a'],['자주','#7a3f5a'],['황토','#b0804a']];
+const skinMat = new THREE.MeshLambertMaterial({ color: 0xe9c9a8 });
+const pantsMat = new THREE.MeshLambertMaterial({ color: 0x2a2c33 });
+const shoeMat = new THREE.MeshLambertMaterial({ color: 0x1b1b1f });
+const lanternHeld = new THREE.MeshLambertMaterial({ color: 0xf5d9a8, emissive: 0xb07a30 });
+const AGES = { child: { sc: .68, head: 1.22 }, young: { sc: 1, head: 1 }, middle: { sc: 1, head: 1 }, senior: { sc: .95, head: 1 } };
+function drawnFace(hue, look){
+  const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d');
+  x.fillStyle='#e9c9a8'; x.fillRect(0,0,128,128);
+  const er = look.age === 'child' ? 8 : 6;
+  x.fillStyle='#3a2a22'; x.beginPath(); x.arc(44,60,er,0,7); x.arc(84,60,er,0,7); x.fill();
+  x.strokeStyle= look.sex === 'f' ? '#b0584e' : '#8a5a48'; x.lineWidth=4; x.lineCap='round'; x.beginPath(); x.arc(64,74,16,.25*Math.PI,.75*Math.PI); x.stroke();
+  x.fillStyle='rgba(230,140,130,.35)'; x.beginPath(); x.arc(34,80,9,0,7); x.arc(94,80,9,0,7); x.fill();
+  if (look.age === 'senior' || look.age === 'middle') { x.strokeStyle='rgba(120,80,60,.45)'; x.lineWidth=2;
+    x.beginPath(); x.moveTo(28,58); x.lineTo(33,63); x.moveTo(100,58); x.lineTo(95,63); x.stroke(); }
+  return new THREE.CanvasTexture(c);
+}
+function setFace(av, dataUrl){
+  const img = new Image();
+  img.onload = () => { const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d');
+    const s=Math.max(128/img.width,128/img.height); x.drawImage(img,(128-img.width*s)/2,(128-img.height*s)/2,img.width*s,img.height*s);
+    const tex=new THREE.CanvasTexture(c); const f=av.userData.face; f.material.map=tex; f.material.needsUpdate=true; av.userData.faceRing.visible = true;
+    // a round photo badge above the head, always turned to the viewer, so the face shows from any side
+    const bc=document.createElement('canvas'); bc.width=bc.height=128; const bx=bc.getContext('2d');
+    bx.beginPath(); bx.arc(64,64,58,0,7); bx.closePath(); bx.save(); bx.clip(); bx.drawImage(c,6,6,116,116); bx.restore();
+    bx.lineWidth=6; bx.strokeStyle='#f2c27a'; bx.beginPath(); bx.arc(64,64,58,0,7); bx.stroke();
+    if (av.userData.badge) av.remove(av.userData.badge);
+    const badge=new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(bc), transparent:true, depthWrite:false }));
+    badge.scale.set(.62,.62,1); badge.position.y=av.userData.top + .45; av.add(badge); av.userData.badge=badge; };
+  img.src = dataUrl;
+}
+function makeAvatar(name, outfit, face, look){
+  look = { sex: ['f','m','n'].includes(look && look.sex) ? look.sex : 'n', age: AGES[look && look.age] ? look.age : 'young' };
+  const A = AGES[look.age], female = look.sex === 'f', male = look.sex === 'm';
+  const root=new THREE.Group(), g=new THREE.Group(); root.add(g); g.scale.setScalar(A.sc);
+  const hue=hueOf(name);
+  const cloth=new THREE.MeshLambertMaterial({ color: outfit || OUTFITS[hue%OUTFITS.length][1] });
+  const hairColor = look.age === 'senior' ? new THREE.Color(0xc4c3c8) : look.age === 'middle' ? new THREE.Color().setHSL(.07,.12,.2 + (hue%3)*.03) : new THREE.Color().setHSL(.07, .35, .12 + (hue%5)*.025);
+  const hair=new THREE.MeshLambertMaterial({ color: hairColor });
+  const limb=(mat, r, len, x, y) => { const piv=new THREE.Group(); piv.position.set(x,y,0);
+    const m=new THREE.Mesh(new THREE.CylinderGeometry(r, r*.9, len, 10), mat); m.position.y=-len/2; piv.add(m); g.add(piv); return piv; };
+  const legMat = female ? skinMat : pantsMat;
+  const legL=limb(legMat, female ? .08 : .1,.78,-.13,.82), legR=limb(legMat, female ? .08 : .1,.78,.13,.82);
+  [legL,legR].forEach(l=>{ const sh=new THREE.Mesh(new THREE.BoxGeometry(.18,.1,.28),shoeMat); sh.position.set(0,-.78,.05); l.add(sh); });
+  const shoulderW = male ? .32 : female ? .25 : .28;
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(shoulderW - .03, .3, .72, 14),cloth); torso.position.y=1.18; g.add(torso);
+  if (female) { const skirt=new THREE.Mesh(new THREE.CylinderGeometry(.3,.5,.55,16),cloth); skirt.position.y=.62; g.add(skirt); }
+  else { const hem=new THREE.Mesh(new THREE.CylinderGeometry(.3,.34,.16,14),cloth); hem.position.y=.82; g.add(hem); }
+  [-1,1].forEach(sx=>{ const sh=new THREE.Mesh(new THREE.SphereGeometry(.13,10,8),cloth); sh.position.set(sx*shoulderW,1.5,0); g.add(sh); });
+  const armL=limb(cloth,.075,.62,-(shoulderW+.06),1.5), armR=limb(cloth,.075,.62,shoulderW+.06,1.5);
+  [armL,armR].forEach(a=>{ const h=new THREE.Mesh(new THREE.SphereGeometry(.075,8,6),skinMat); h.position.y=-.66; a.add(h); });
+  // hand lantern on the right; a walking stick on the left for elders
+  const lan=new THREE.Group(); lan.position.set(0,-.82,.04); armR.add(lan);
+  lan.add(new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,.16,6), lanternHeld));
+  lan.add(glow(emberTex,.8,.85));
+  // a candle held up high, shown while the person holds a candle at the World Tree
+  const held=new THREE.Group(); held.position.set(0,-.72,0); held.visible=false; armR.add(held);
+  const hc=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.26,8), new THREE.MeshLambertMaterial({ color: 0xf3ead8, emissive: 0x3a2a10 })); hc.position.y=.1; held.add(hc);
+  const hf=new THREE.Mesh(new THREE.SphereGeometry(.04,8,8), new THREE.MeshBasicMaterial({ color: 0xffd28a })); hf.scale.y=1.8; hf.position.y=.29; held.add(hf);
+  const hg=glow(emberTex,1.3,.95); hg.position.y=.3; held.add(hg);
+  if (look.age === 'senior') { const cane=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.95,6), new THREE.MeshLambertMaterial({ color: 0x5a4030 })); cane.position.set(0,-1.05,.12); armL.add(cane); }
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.08,.09,.12,8),skinMat); neck.position.y=1.6; g.add(neck);
+  const headG=new THREE.Group(); headG.position.y=1.88; headG.scale.setScalar(A.head); g.add(headG);
+  headG.add(new THREE.Mesh(new THREE.SphereGeometry(.27,20,16),skinMat));
+  const capCover = male ? .45 : .55;
+  const hairCap=new THREE.Mesh(new THREE.SphereGeometry(.29,20,12,0,Math.PI*2,0,Math.PI*capCover),hair); hairCap.position.set(0,.02,-.02); hairCap.rotation.x=-.25; headG.add(hairCap);
+  if (female) {
+    const back=new THREE.Mesh(new THREE.CylinderGeometry(.27,.3, look.age === 'senior' ? .32 : .55, 16, 1, true, Math.PI*.5, Math.PI), hair);
+    back.material.side = THREE.DoubleSide; back.position.set(0, look.age === 'senior' ? -.05 : -.18, -.04); headG.add(back);
+    if (look.age === 'senior') { const bun=new THREE.Mesh(new THREE.SphereGeometry(.12,12,10),hair); bun.position.set(0,.12,-.28); headG.add(bun); }
+  }
+  const faceMesh=new THREE.Mesh(new THREE.CircleGeometry(.2,28), new THREE.MeshBasicMaterial({ map: drawnFace(hue, look) })); faceMesh.position.set(0,-.02,.262); headG.add(faceMesh);
+  const faceRing=new THREE.Mesh(new THREE.RingGeometry(.2,.225,28), new THREE.MeshBasicMaterial({ color: 0xf2c27a })); faceRing.position.set(0,-.02,.263); faceRing.visible=false; headG.add(faceRing);
+  const top = (1.88 + .3*A.head) * A.sc;
+  const label=textSprite(name); label.position.y=top + .12; root.add(label);
+  root.userData = { legL, legR, armL, armR, face: faceMesh, faceRing, top, phase: Math.random()*6, walk: 0, rate: look.age === 'senior' ? 6 : look.age === 'child' ? 11 : 9, cane: look.age === 'senior', lan, held, flame: hf, hold: false };
+  if (face) setFace(root, face);
+  scene.add(root); return root;
+}
+function setHold(av, on){ const u=av.userData; if (u.hold === on) return; u.hold = on; u.lan.visible = !on; u.held.visible = on; }
+function animateAvatar(av, moving, t, dt){
+  const u=av.userData; u.walk += ((moving?1:0) - u.walk) * Math.min(1, dt*8);
+  const sw = reduceMotion ? 0 : Math.sin(t*u.rate + u.phase) * .65 * u.walk;
+  u.legL.rotation.x = sw; u.legR.rotation.x = -sw;
+  u.armL.rotation.x = u.cane ? -.25 - sw*.3 : -sw*.8;
+  if (u.hold) { u.armR.rotation.x = -2.35; u.held.rotation.x = 2.35; if (!reduceMotion) u.flame.scale.y = 1.8 + Math.sin(t*13 + u.phase)*.25; }
+  else u.armR.rotation.x = sw*.35 - .15;
+}
+
+/* =================== CONTEXT (garden or a room) =================== */
+const ctx = { kind: 'garden', memorial: null };
+const offerParent = () => ctx.kind === 'garden' ? garden : roomG;
+const colliders = () => ctx.kind === 'garden' ? gardenColliders : roomColliders;
+const altarPos = () => ctx.kind === 'garden' ? { x: 0, z: 0, r: 5.2 } : { x: ROOM.altar.x, z: ROOM.altar.z, r: 3.6 };
+
+/* state */
+let myName = store.get('garden.name') || '';
+$('fName').value = myName;
+let myFace = store.get('garden.face') || '';
+let myOutfit = store.get('garden.outfit') || OUTFITS[2][1];
+let mySex = store.get('garden.sex') || 'n', myAge = store.get('garden.age') || 'young';
+function segGroup(el, opts, get, set){ opts.forEach(([v,label]) => { const b=document.createElement('button'); b.type='button'; b.className='seg'+(get()===v?' on':''); b.textContent=label; b.setAttribute('role','radio'); b.setAttribute('aria-checked', String(get()===v));
+  b.onclick=()=>{ set(v); el.querySelectorAll('.seg').forEach(x=>{ x.classList.toggle('on', x===b); x.setAttribute('aria-checked', String(x===b)); }); }; el.append(b); }); }
+segGroup($('sexPick'), [['f','여성'],['m','남성'],['n','선택 안 함']], () => mySex, v => mySex = v);
+segGroup($('agePick'), [['child','어린이'],['young','청년'],['middle','중장년'],['senior','어르신']], () => myAge, v => myAge = v);
+let vid = store.get('garden.vid'); if (!vid) { vid = newId(); store.set('garden.vid', vid); }
+function showFace(){ $('facePreview').hidden = !myFace; $('faceEmpty').hidden = !!myFace; $('faceClear').hidden = !myFace; if (myFace) $('facePreview').src = myFace; }
+showFace();
+OUTFITS.forEach(([n,c]) => { const b=document.createElement('button'); b.type='button'; b.className='sw'; b.style.background=c; b.setAttribute('role','radio'); b.setAttribute('aria-label',n); b.title=n;
+  b.setAttribute('aria-checked', String(c===myOutfit)); b.onclick=()=>{ myOutfit=c; document.querySelectorAll('.sw').forEach(x=>x.setAttribute('aria-checked', String(x===b))); }; $('swatches').append(b); });
+$('fFace').addEventListener('change', async () => { const f=$('fFace').files[0]; if (!f) return;
+  try { myFace = await shrinkFace(f); showFace(); } catch(e){ toast('사진을 읽지 못했어요. 다른 사진으로 시도해 주세요.'); } });
+$('faceClear').onclick = () => { myFace=''; $('fFace').value=''; showFace(); };
+function shrinkFace(file){
+  return new Promise((res, rej) => { const img=new Image(), url=URL.createObjectURL(file);
+    img.onload=()=>{ const c=document.createElement('canvas'); c.width=c.height=112; const x=c.getContext('2d'); const s=Math.max(112/img.width,112/img.height);
+      x.drawImage(img,(112-img.width*s)/2,(112-img.height*s)/2,img.width*s,img.height*s); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg',.72)); };
+    img.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('image')); }; img.src=url; });
+}
+let me = null, entered = false;
+const pos = new THREE.Vector3(0, 0, 12);
+let yaw = 0, lift = 0, target = null;
+const keys = {};
+addEventListener('keydown', e => { if (/INPUT|TEXTAREA/.test(e.target.tagName)) return; keys[e.key.toLowerCase()] = true; });
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+/* pointer: drag rotates camera, tap walks / opens things */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let down = null;
+const roomFloor = meadow;
+canvas.addEventListener('pointerdown', e => { down = { x:e.clientX, y:e.clientY, yaw, lift, moved:false }; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove', e => { if (!down) return; const dx=e.clientX-down.x; if (Math.abs(dx)>6||Math.abs(e.clientY-down.y)>6) down.moved=true; if (down.moved) { yaw = down.yaw - dx*0.008; lift = Math.max(0, Math.min(ctx.kind==='garden' ? 14 : 5, down.lift + (e.clientY-down.y)*0.03)); } });
+canvas.addEventListener('pointerup', e => {
+  if (down && !down.moved && entered) {
+    ndc.set(e.clientX/innerWidth*2-1, -(e.clientY/innerHeight)*2+1); ray.setFromCamera(ndc, camera);
+    const hitL = ray.intersectObjects(lanternMeshes, false)[0];
+    const hitF = ctx.kind === 'garden' ? ray.intersectObjects(fruitMeshes, false)[0] : null;
+    if (hitL && (!hitF || hitL.distance < hitF.distance)) openLetter(hitL.object.userData.letter);
+    else if (hitF) openMemorialCard(hitF.object.userData.memorial);
+    else { const h = ray.intersectObject(ctx.kind === 'garden' ? ground : roomFloor)[0]; if (h) target = h.point.clone().setY(0); }
+  }
+  down = null;
+});
+
+/* =================== OFFERINGS =================== */
+let offerObjs = [];
+const candleGeo = new THREE.CylinderGeometry(.07,.07,.32,10);
+const candleMat = new THREE.MeshLambertMaterial({ color: 0xf3ead8, emissive: 0x3a2a10 });
+const flameMat = new THREE.MeshBasicMaterial({ color: 0xffd28a });
+const petalMat = new THREE.MeshLambertMaterial({ color: 0xf1ead2, emissive: 0x2b2a22 });
+const stemMat = new THREE.MeshLambertMaterial({ color: 0x3e6a3e });
+function slotFor(kind, i){
+  const A = altarPos(), garden_ = ctx.kind === 'garden';
+  if (kind === 'flower') {
+    const n = garden_ ? 14 : 10, k=Math.floor(i/n), a = -0.9 + (i%n)/(n-1)*1.8 + (k%2)*.06;
+    const r = Math.max(garden_ ? 1.35 - k*.25 : .8 - k*.18, .3);
+    return { x: A.x + Math.sin(a)*r, y: garden_ ? .46 : .72, z: A.z + Math.cos(a)*r - (garden_ ? .1 : 0), a };
+  }
+  const k = Math.floor(i/20), j = i%20, a = -1.4 + j/19*2.8 + (k%2)*.07, r = (garden_ ? 2.6 : 1.55) + k*.45;
+  return { x: A.x + Math.sin(a)*r, y: 0, z: A.z + Math.cos(a)*r, a };
+}
+function buildOffering(d, i){
+  const s = slotFor(d.kind, i); const g = new THREE.Group();
+  if (d.kind === 'flower') {
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.015,.015,.6,5),stemMat); stem.rotation.z=Math.PI/2; g.add(stem);
+    const bloom=new THREE.Mesh(new THREE.IcosahedronGeometry(.11,1),petalMat); bloom.position.x=.32; g.add(bloom);
+    g.rotation.y = -s.a + Math.PI/2 + ((i*37)%10-5)*.04;
+  } else {
+    const c=new THREE.Mesh(candleGeo,candleMat); c.position.y=.16; g.add(c);
+    const f=new THREE.Mesh(new THREE.SphereGeometry(.045,8,8),flameMat); f.scale.y=1.8; f.position.y=.38; g.add(f);
+    const gl=glow(emberTex,.75,.9); gl.position.y=.4; g.add(gl);
+    g.userData = { flame: f, glow: gl, p: i*1.7 };
+  }
+  g.position.set(s.x, s.y, s.z); offerParent().add(g); return g;
+}
+function renderOfferings(list){
+  offerObjs.forEach(o => o.parent && o.parent.remove(o)); offerObjs = [];
+  let ci=0, fi=0;
+  list.forEach(d => { const i = d.kind==='flower' ? fi++ : ci++; if (i < 220) offerObjs.push(buildOffering(d,i)); });
+  $('stCandles').textContent = ci; $('stFlowers').textContent = fi;
+  const L = ctx.kind === 'garden' ? altarLight : roomLight; L.intensity = (ctx.kind==='garden'?1.2:1.5) + Math.min(ci, 60)*0.03;
+}
+
+/* =================== LETTERS (lanterns) =================== */
+let letters = [];
+const lanterns = [], lanternMeshes = [];
+const lanternMat = new THREE.MeshLambertMaterial({ color: 0xf5d9a8, emissive: 0x8a5a20 });
+/* empathy ("공감"): one per letter per browser, counted on the letter */
+let sortMode = 'heart';
+const hearted = new Set((() => { try { return JSON.parse(store.get('garden.hearted') || '[]'); } catch(e){ return []; } })());
+const heartKey = L => (ctx.kind === 'garden' ? 'g/' : ctx.memorial.id + '/') + L.id;
+const sortedLetters = () => letters.slice().sort((a,b) => sortMode === 'heart' ? ((b.hearts||0)-(a.hearts||0) || b.at-a.at) : b.at-a.at);
+async function giveHeart(L){
+  const k = heartKey(L);
+  if (hearted.has(k)) { toast('이미 공감한 사연이에요.'); return false; }
+  try { const r = await Net.heart(L.id, vid); L.hearts = r.hearts; if (!r.added) toast('이미 공감한 사연이에요.'); }
+  catch(e){ toast(e.message || '공감을 전하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); return false; }
+  hearted.add(k); store.set('garden.hearted', JSON.stringify([...hearted].slice(-2000)));
+  renderLetters(); return true;
+}
+$('sortHeart').onclick = () => { sortMode='heart'; $('sortHeart').classList.add('on'); $('sortNew').classList.remove('on'); renderLetters(); };
+$('sortNew').onclick = () => { sortMode='new'; $('sortNew').classList.add('on'); $('sortHeart').classList.remove('on'); renderLetters(); };
+function renderLetters(){
+  lanterns.forEach(l => l.parent && l.parent.remove(l)); lanterns.length = 0; lanternMeshes.length = 0;
+  const byHeart = letters.slice().sort((a,b) => (b.hearts||0)-(a.hearts||0) || b.at-a.at);
+  byHeart.slice(0, 48).forEach((L, i) => {
+    const g = new THREE.Group();
+    const s = 1 + Math.min(L.hearts||0, 30) * .035; g.scale.setScalar(s);
+    const box = new THREE.Mesh(new THREE.CylinderGeometry(.16,.22,.32,6), lanternMat); box.position.y=.18; box.userData.letter = L; g.add(box);
+    const gl = glow(emberTex, 1.1, .8); gl.position.y=.25; g.add(gl);
+    const inRoom = ctx.kind === 'room';
+    const r = inRoom ? 2.5 + (i*0.618 % 1) * 3.6 : 1 + (i*0.618 % 1) * (POND.r - 1.6);
+    g.userData = { r, a: i*2.399, sp: (.04 + (i%5)*.012) * (i%2?1:-1), p: i, h: inRoom ? 1.6 + (i*0.37 % 1) * 3.5 : .05 };
+    offerParent().add(g); lanterns.push(g); lanternMeshes.push(box);
+  });
+  const box = $('letters'); box.textContent = '';
+  if (!letters.length) { const e=document.createElement('div'); e.className='empty';
+    e.textContent = ctx.kind === 'garden' ? '아직 띄워진 편지가 없어요. 첫 편지는 연못 위 작은 등불이 되어 떠다닙니다.' : '아직 이곳에 남겨진 편지가 없어요. 첫 편지는 언덕 위를 떠도는 등불이 됩니다.'; box.append(e); return; }
+  sortedLetters().forEach((L, i) => {
+    const el=document.createElement('article'); el.className='letter' + (sortMode==='heart' && i<3 && (L.hearts||0)>0 ? ' top' : '');
+    const to=document.createElement('div'); to.className='to'; to.textContent = L.to + '에게';
+    const p=document.createElement('p'); p.textContent = L.msg;
+    const foot=document.createElement('div'); foot.className='foot';
+    const m=document.createElement('div'); m.className='meta'; m.textContent = (L.name||'이름 없는 이') + ' · ' + fmtDate(L.at);
+    const h=document.createElement('button'); h.type='button'; h.className='heart' + (hearted.has(heartKey(L)) ? ' on' : '');
+    h.textContent = '공감 ' + (L.hearts||0); h.setAttribute('aria-label', '이 사연에 공감하기, 현재 ' + (L.hearts||0) + '명');
+    h.onclick = () => giveHeart(L);
+    const cb=document.createElement('button'); cb.type='button'; cb.className='cbtn'; cb.textContent='댓글 ' + (L.comments||0); cb.onclick = () => openLetter(L);
+    const right=document.createElement('div'); right.style.display='flex'; right.style.gap='4px'; right.style.alignItems='center'; right.append(cb, h);
+    foot.append(m, right); el.append(to,p,foot); box.append(el);
+  });
+}
+function openLetter(L){
+  $('rTo').textContent = L.to + '에게'; $('rMsg').textContent = L.msg;
+  $('rMeta').textContent = (L.name||'이름 없는 이') + ' · ' + fmtDate(L.at) + ' · 공감 ' + (L.hearts||0);
+  $('rEnter').hidden = true; $('rHeart').hidden = false;
+  const done = hearted.has(heartKey(L)); $('rHeart').disabled = done; $('rHeart').textContent = done ? '공감했어요' : '공감해요';
+  $('rHeart').onclick = async () => { if (await giveHeart(L)) { $('rHeart').disabled = true; $('rHeart').textContent = '공감했어요'; $('rMeta').textContent = (L.name||'이름 없는 이') + ' · ' + fmtDate(L.at) + ' · 공감 ' + L.hearts; } };
+  openComments(L);
+  $('reader').hidden = false;
+}
+/* comments under each story: letters/{id}/comments, newest last */
+let cLetter = null;
+let replyTo = null;
+function setReply(c){ replyTo = c; $('replying').hidden = !c; if (c) { $('replyingTo').textContent = (c.name || '이름 없는 이') + '님에게 답글'; $('cText').placeholder = '답글을 남겨 주세요'; $('cText').focus(); } else $('cText').placeholder = '따뜻한 한마디를 남겨 주세요'; }
+$('replyCancel').onclick = () => setReply(null);
+function renderComments(list){
+  const box = $('cList'); box.textContent = '';
+  if (!list.length) { const e=document.createElement('div'); e.className='empty'; e.textContent='아직 댓글이 없어요. 첫 위로를 건네 주세요.'; box.append(e); return; }
+  const tops = list.filter(c => !c.parent), kids = new Map();
+  list.filter(c => c.parent).forEach(c => { if (!kids.has(c.parent)) kids.set(c.parent, []); kids.get(c.parent).push(c); });
+  const one = (c, isReply) => { const d=document.createElement('div'); d.className='cmt' + (isReply ? ' reply' : '');
+    const b=document.createElement('b'); b.textContent = c.name || '이름 없는 이'; const t=document.createElement('span'); t.textContent = fmtDate(c.at);
+    const x=document.createElement('div'); x.textContent = c.text; d.append(b, t, x);
+    if (!isReply) { const r=document.createElement('button'); r.type='button'; r.className='cbtn'; r.textContent='답글 달기'; r.onclick = () => setReply(c); d.append(r); }
+    box.append(d); };
+  tops.forEach(c => { one(c, false); (kids.get(c.id) || []).forEach(k => one(k, true)); });
+  // replies whose parent is missing still show, at the end
+  list.filter(c => c.parent && !tops.some(t => t.id === c.parent)).forEach(k => one(k, true));
+}
+let cList = [];
+function closeComments(){ cLetter = null; cList = []; }
+function openComments(L){
+  closeComments(); setReply(null); cLetter = L;
+  $('rComments').hidden = false; renderComments([]);
+  Net.comments(L.id).then(list => { if (cLetter !== L) return; cList = mergeById(list, cList); renderComments(cList); }).catch(() => {});
+}
+$('cForm').addEventListener('submit', async e => {
+  e.preventDefault(); const text = $('cText').value.trim(); if (!text || !cLetter) return;
+  const L = cLetter;
+  try {
+    const c = await Net.addComment(L.id, { text, name: myName, visitorId: vid, parentId: replyTo && replyTo.id ? replyTo.id : null });
+    if (cLetter === L && !cList.some(x => x.id === c.id)) { cList.push(c); renderComments(cList); L.comments = (L.comments||0) + 1; }
+  } catch(err) { toast(err.message || '댓글을 남기지 못했어요. 잠시 뒤 다시 시도해 주세요.'); return; }
+  $('cText').value = ''; setReply(null); renderLetters();
+});
+$('rClose').onclick = () => { $('reader').hidden = true; closeComments(); };
+
+/* =================== MEMORIALS (lights on the World Tree) =================== */
+let memorials = [];
+function renderMemorials(){
+  memorialFruits.clear(); fruitMeshes.length = 0;
+  memorials.slice(0, 80).forEach((m, i) => {
+    const a = i*2.399 + .4, r = 4.8 + (i*0.618 % 1)*2.8, y = 5.4 + (i*0.37 % 1)*2;
+    const g = new THREE.Group(); g.position.set(Math.cos(a)*r, y, Math.sin(a)*r);
+    const hue = hueOf(m.name||'');
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(.45, 16, 12), new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(hue/360, .55, .78) }));
+    orb.userData.memorial = m; g.add(orb); fruitMeshes.push(orb);
+    g.add(glow(emberTex, 2.6, .8));
+    const label = textSprite(m.name, 2.6); label.material.depthTest = false; label.renderOrder = 2; label.position.y = .95; g.add(label);
+    const thread = new THREE.Mesh(new THREE.CylinderGeometry(.015,.015,2,4), new THREE.MeshBasicMaterial({ color: 0x8a7a5a })); thread.position.y = 1.2; g.add(thread);
+    g.userData.p = i; memorialFruits.add(g);
+  });
+  const box = $('memList'); box.textContent = '';
+  if (!memorials.length) { const e=document.createElement('div'); e.className='empty'; e.textContent='아직 세계수에 걸린 기억이 없어요. 기억할 분을 추가하면 세계수에 빛이 하나 맺힙니다.'; box.append(e); return; }
+  memorials.forEach(m => {
+    const b=document.createElement('button'); b.className='mem'; b.type='button';
+    const img=document.createElement('img'); img.alt=''; img.src = m.photo || avatarData(m);
+    const d=document.createElement('div'); const s=document.createElement('strong'); s.textContent=m.name; const sp=document.createElement('span'); sp.textContent=[m.years, m.intro].filter(Boolean).join(' · ');
+    const cnt=document.createElement('em'); cnt.className='cnt'; cnt.dataset.mid=m.id;
+    d.append(s, sp, cnt); b.append(img, d); b.onclick = () => enterRoom(m); box.append(b);
+  });
+}
+function avatarData(m){ const c=document.createElement('canvas'); c.width=c.height=104; const x=c.getContext('2d'); const h=hueOf(m.name||''); x.fillStyle=`hsl(${h},25%,30%)`; x.fillRect(0,0,104,104); x.fillStyle='#efe6d4'; x.font='48px "Gowun Batang", serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText((m.name||'?')[0],52,56); return c.toDataURL(); }
+function openMemorialCard(m){
+  $('rTo').textContent = m.name + (m.years ? '  ' + m.years : '');
+  $('rMsg').textContent = m.intro || '이분을 기억하는 사람들이 모이는 방입니다.';
+  const vc = visitorCounts.get(m.id) || 0;
+  $('rMeta').textContent = (m.by ? m.by + '님이 만든 공간 · ' : '') + fmtDate(m.at) + (vc ? ` · 지금 ${vc}명이 머무는 중` : '');
+  $('rComments').hidden = true; closeComments();
+  $('rHeart').hidden = true; $('rEnter').textContent = '이 공간으로 이동하기'; $('rEnter').hidden = false; $('rEnter').onclick = () => { $('reader').hidden = true; enterRoom(m); };
+  $('reader').hidden = false;
+}
+function shrinkPhoto(file){
+  return new Promise((res, rej) => {
+    const img = new Image(); const url = URL.createObjectURL(file);
+    img.onload = () => { const max=360, s=Math.min(1, max/Math.max(img.width,img.height)); const c=document.createElement('canvas'); c.width=Math.round(img.width*s); c.height=Math.round(img.height*s);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', .78)); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('image')); };
+    img.src = url;
+  });
+}
+
+/* =================== DATA: the memorial server (REST + live events) =================== */
+const spaceKey = () => ctx.kind === 'garden' ? 'garden' : ctx.memorial.id;
+let spaceUnsub = null, offerList = [];
+const mergeById = (a, b) => { const seen = new Set(a.map(x => x.id)); return a.concat(b.filter(x => !seen.has(x.id))); };
+let offlineWarned = false;
+const offline = e => { if (!offlineWarned) { offlineWarned = true; toast((e && e.message) || '서버에 닿지 못했어요. 잠시 뒤 다시 시도해 주세요.'); } };
+function subscribeContext(){
+  const space = spaceKey();
+  if (spaceUnsub) { try { spaceUnsub(); } catch(e){} spaceUnsub = null; }
+  offerList = []; renderOfferings([]); letters = []; renderLetters(); resetChat(); clearGhosts();
+  spaceUnsub = Net.watchSpace(space, onSpaceEvent, onPresence, onPeers);
+  Net.offerings(space).then(o => { if (spaceKey() !== space) return; offerList = mergeById(o, offerList); renderOfferings(offerList); }).catch(offline);
+  Net.letters(space).then(l => { if (spaceKey() !== space) return; letters = mergeById(l, letters); renderLetters(); }).catch(offline);
+  Net.chat(space).then(c => { if (spaceKey() !== space) return; renderChat(mergeById(c, chatList).sort((a,b) => a.at - b.at)); }).catch(() => { if (!chatList.length) renderChat([]); });
+}
+function onSpaceEvent(type, d){
+  if (type === 'letter') { if (!letters.some(x => x.id === d.id)) { letters.unshift(d); renderLetters(); } }
+  else if (type === 'heart') { const L = letters.find(x => x.id === d.letterId); if (L) { L.hearts = d.hearts; renderLetters(); } }
+  else if (type === 'comment') {
+    const L = letters.find(x => x.id === d.comment.letterId); if (L) { L.comments = d.comments; renderLetters(); }
+    if (cLetter && cLetter.id === d.comment.letterId && !cList.some(c => c.id === d.comment.id)) { cList.push(d.comment); renderComments(cList); }
+  }
+  else if (type === 'offering') { if (!offerList.some(x => x.id === d.id)) { offerList.push(d); renderOfferings(offerList); } }
+  else if (type === 'chat') onChat(d);
+}
+async function addTo(name, data){
+  const space = spaceKey();
+  try {
+    if (name === 'offerings') { const o = await Net.addOffering(space, { kind: data.kind, name: myName, visitorId: vid }); onSpaceEvent('offering', o); }
+    else { const l = await Net.addLetter(space, { to: data.to, message: data.msg, name: myName, visitorId: vid }); onSpaceEvent('letter', l); }
+    return true;
+  } catch(e){ toast(e.message || '지금은 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); return false; }
+}
+function upsertMemorial(m){ memorials = [m].concat(memorials.filter(x => x.id !== m.id)); renderMemorials(); updateCounts(); }
+async function createMemorial(m){
+  try {
+    const r = await Net.createMemorial(m);
+    store.set('garden.edit.' + r.memorial.id, r.editToken);
+    upsertMemorial(r.memorial); return true;
+  } catch(e){ toast(e.message || '공간을 열지 못했어요. 사진이 너무 크면 빼고 다시 시도해 주세요.'); return false; }
+}
+Net.onMemorial(upsertMemorial);
+Net.memorials().then(list => { memorials = list; renderMemorials(); updateCounts(); if (pendingHash && entered) routeFromHash(); }).catch(offline);
+
+/* =================== PRESENCE: who is in this space, and how many are in each personal space =================== */
+const visitorCounts = new Map();
+function updateCounts(){ document.querySelectorAll('[data-mid]').forEach(el => { const n = visitorCounts.get(el.dataset.mid) || 0; el.textContent = n ? `지금 ${n}명이 머무는 중` : ''; }); }
+function onVisitorCounts(c){
+  visitorCounts.clear();
+  Object.entries(c || {}).forEach(([k, n]) => { const others = n - (entered && me && spaceKey() === k ? 1 : 0); if (others > 0) visitorCounts.set(k, others); });
+  updateCounts();
+}
+Net.visitors(onVisitorCounts); Net.onVisitors(onVisitorCounts);
+const ghosts = new Map();
+function clearGhosts(){ for (const g of ghosts.values()) scene.remove(g.obj); ghosts.clear(); $('stPeople').textContent = 1; }
+const faceCache = new Map();
+async function loadFace(k, av){
+  if (typeof k !== 'string' || !/^[a-z0-9]{6,40}$/.test(k)) return;
+  if (faceCache.has(k)) { const f = faceCache.get(k); if (f) setFace(av, f); return; }
+  faceCache.set(k, null);
+  try { const f = await Net.face(k); if (typeof f === 'string' && f.startsWith('data:image/')) { faceCache.set(k, f); setFace(av, f); } } catch(e){}
+}
+function upsertGhost(peer, pr){
+  pr = pr || {}; if (typeof pr.x !== 'number' || pr.k === vid) return;
+  let g = ghosts.get(peer);
+  const nm = String(pr.n || '방문자').slice(0,16);
+  const outfit = /^#[0-9a-f]{6}$/i.test(pr.o || '') ? pr.o : null;
+  if (!g) { g = { obj: makeAvatar(nm, outfit, faceCache.get(pr.k) || null, { sex: pr.s, age: pr.a }) }; g.obj.position.set(pr.x,0,pr.z); ghosts.set(peer, g); loadFace(pr.k, g.obj); }
+  g.tx = pr.x; g.tz = pr.z; g.ry = pr.r || 0; g.k = pr.k; setHold(g.obj, pr.h === 1);
+}
+function dropGhost(peer){ const g = ghosts.get(peer); if (g) { scene.remove(g.obj); ghosts.delete(peer); } }
+function onPeers(list){ clearGhosts(); (list || []).forEach(p => upsertGhost(p.peer, p.state)); $('stPeople').textContent = ghosts.size + 1; }
+function onPresence(m){ if (!m || !m.peer) return; if (m.left) dropGhost(m.peer); else upsertGhost(m.peer, m.state); $('stPeople').textContent = ghosts.size + 1; }
+function switchPresence(){ lastSent = 0; lastSentPos.set(999,0,999); presenceDirty = true; }
+Net.onConnect(() => { switchPresence(); offlineWarned = false; });
+Net.start();
+let presenceDirty = false, holding = false;
+let lastSent = 0; const lastSentPos = new THREE.Vector3(999,0,999);
+function sendPresence(t){
+  if (!me) return;
+  if (t - lastSent < 180 || (lastSentPos.distanceTo(pos) < .05 && !presenceDirty)) return;
+  const sent = Net.presence(spaceKey(), { x: +pos.x.toFixed(2), z: +pos.z.toFixed(2), r: +me.rotation.y.toFixed(2), n: myName, o: myOutfit, k: vid, s: mySex, a: myAge, h: holding ? 1 : 0 });
+  if (!sent) return;
+  presenceDirty = false; lastSent = t; lastSentPos.copy(pos);
+}
+
+/* =================== ENTER / LEAVE ROOMS =================== */
+/* =================== CHAT: each space has its own; recent lines from the server, new ones live, shown in a box and as bubbles over the speaker =================== */
+function bubble(av, text){
+  if (!av) return;
+  const c=document.createElement('canvas'); c.width=512; c.height=128; const x=c.getContext('2d');
+  x.font='30px "Gowun Dodum", sans-serif'; let t=text; while (x.measureText(t).width > 440 && t.length > 1) t=t.slice(0,-2)+'…';
+  const w=Math.min(480, x.measureText(t).width+44); x.fillStyle='rgba(239,230,212,.94)'; x.beginPath();
+  if (x.roundRect) x.roundRect(256-w/2,14,w,70,26); else x.rect(256-w/2,14,w,70); x.fill();
+  x.beginPath(); x.moveTo(246,84); x.lineTo(256,102); x.lineTo(266,84); x.fill();
+  x.fillStyle='#1a1f2e'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(t,256,50);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(c), transparent:true, depthWrite:false, depthTest:false }));
+  sp.renderOrder=3; sp.scale.set(3.2,.8,1); sp.position.y=av.userData.top + (av.userData.badge ? 1.05 : .6);
+  if (av.userData.bubble) av.remove(av.userData.bubble);
+  av.add(sp); av.userData.bubble=sp; clearTimeout(sp.t);
+  setTimeout(() => { if (av.userData.bubble === sp) { av.remove(sp); av.userData.bubble=null; } }, 7000);
+}
+function avatarOfVid(k){ if (k === vid) return me; for (const g of ghosts.values()) if (g.k === k) return g.obj; return null; }
+function addChatLine(m){
+  const em=$('chatLog').querySelector('.empty'); if (em) em.remove();
+  const ln=document.createElement('div'); ln.className='ln' + (m.k === vid ? ' me' : '');
+  const b=document.createElement('b'); b.textContent=m.name || '이름 없는 이'; ln.append(b, document.createTextNode(m.text)); $('chatLog').append(ln);
+  while ($('chatLog').children.length > 60) $('chatLog').firstChild.remove();
+  $('chatLog').scrollTop = $('chatLog').scrollHeight;
+}
+const chatIds = new Set(); let chatList = [];
+function renderChat(list){
+  $('chatLog').textContent=''; chatIds.clear(); chatList = list.slice(-60);
+  if (!list.length) { const e=document.createElement('div'); e.className='empty'; e.textContent='아직 대화가 없어요. 먼저 인사를 건네 보세요.'; $('chatLog').append(e); }
+  list.forEach(m => { chatIds.add(m.id); addChatLine(m); });
+}
+function onChat(m){
+  if (chatIds.has(m.id)) return; chatIds.add(m.id); chatList.push(m);
+  addChatLine(m); bubble(avatarOfVid(m.k), m.text);
+  if ($('chat').classList.contains('closed') && m.k !== vid) $('chatNew').textContent = '새 대화';
+}
+function resetChat(){
+  $('chatNew').textContent = ''; $('chatLog').textContent = ''; chatIds.clear(); chatList = [];
+  $('chatHeadText').textContent = ctx.kind === 'garden' ? '함께 이야기 나누기' : ctx.memorial.name + '님을 기억하는 사람들의 대화';
+}
+$('chatToggle').onclick = () => { const c=$('chat'); c.classList.toggle('closed'); const open=!c.classList.contains('closed'); $('chatToggle').setAttribute('aria-expanded', String(open)); if (open) $('chatNew').textContent=''; };
+if (innerWidth < 560) { $('chat').classList.add('closed'); $('chatToggle').setAttribute('aria-expanded','false'); }
+$('chatForm').addEventListener('submit', async e => {
+  e.preventDefault(); const text=$('chatText').value.trim(); if (!text || !me) return;
+  $('chatText').value='';
+  try { onChat(await Net.say(spaceKey(), { text, name: myName, visitorId: vid })); }
+  catch(err){ toast(err.message || '메시지를 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.'); $('chatText').value=text; }
+  $('chatText').blur();
+});
+addEventListener('keydown', e => { if (e.key === 'Enter' && entered && !/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName) && $('reader').hidden) { e.preventDefault(); $('chat').classList.remove('closed'); $('chatNew').textContent=''; $('chatText').focus(); } });
+addEventListener('keydown', e => { if (e.key === 'Enter' && entered && !/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName) && $('reader').hidden) { e.preventDefault(); $('chat').classList.remove('closed'); $('chatNew').textContent=''; $('chatText').focus(); } });
+
+function setScene(kind){
+  const g = kind === 'garden';
+  $('chat').hidden = !entered;
+  garden.visible = g; roomG.visible = !g;
+  scene.background = new THREE.Color(g ? 0x0d1220 : 0x111a2e);
+  scene.fog = g ? new THREE.FogExp2(0x0d1220, 0.022) : new THREE.FogExp2(0x111a2e, 0.012);
+  $('btnBack').hidden = g; $('btnTree').hidden = !g;
+  $('letterTitle').textContent = g ? '함께 나누는 사연' :ctx.memorial.name + '님께 쓰는 편지';
+  $('letterSubmit').textContent = g ? '연못에 등불로 띄우기' : '이곳에 등불로 띄우기';
+  if (!g) $('fTo').value = ctx.memorial.name;
+  $('title').textContent = g ? '그리움의 정원' : ctx.memorial.name + '님의 추모 공간';
+  $('subtitle').textContent = g ? '먼저 떠난 이를 기억하는 사람들이 함께 머무는 곳' : [ctx.memorial.years, ctx.memorial.intro].filter(Boolean).join(' · ') || '한 사람을 함께 기억하는 공간';
+  nearAltar = null;
+}
+function warp(fn){
+  const w = $('warp'); if (reduceMotion) { fn(); return; }
+  w.classList.add('on'); setTimeout(() => { fn(); setTimeout(() => w.classList.remove('on'), 120); }, 480);
+}
+function enterRoom(m){ if (!entered) { pendingHash = 'm-' + m.id; return; } warp(() => doEnterRoom(m)); }
+function leaveRoom(){ warp(doLeaveRoom); }
+function doEnterRoom(m){
+  ['treePanel','letterPanel'].forEach(id => $(id).classList.remove('open'));
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  ctx.kind = 'room'; ctx.memorial = m;
+  setScene('room');
+  if (roomNameSprite.obj) roomG.remove(roomNameSprite.obj);
+  roomNameSprite.obj = textSprite(m.name, 2.4); roomNameSprite.obj.position.set(0, 3.4, -5.85); roomG.add(roomNameSprite.obj);
+  drawPortrait(m, null);
+  if (m.photo) { const img = new Image(); img.crossOrigin = 'anonymous'; img.onload = () => { if (ctx.memorial === m) drawPortrait(m, img); }; img.src = m.photo; }
+  pos.set(0, 0, 5.5); yaw = 0; lift = 0; target = null; if (me) me.position.copy(pos); camera.position.set(0, 4.6, 14);
+  subscribeContext(); switchPresence();
+  try { history.replaceState(null, '', '#m-' + m.id); } catch(e){ location.hash = 'm-' + m.id; }
+  toast(m.name + '님의 추모 공간으로 왔어요. 누구나 이곳에 찾아올 수 있어요.');
+}
+function doLeaveRoom(){
+  ctx.kind = 'garden'; ctx.memorial = null;
+  setScene('garden');
+  pos.set(2.5, 0, -9.5); yaw = 0; lift = 3; target = null; if (me) me.position.copy(pos); camera.position.set(pos.x, 4.6, pos.z + 9);
+  subscribeContext(); switchPresence();
+  try { history.replaceState(null, '', location.pathname + location.search); } catch(e){ location.hash = ''; }
+}
+let pendingHash = (location.hash || '').slice(1);
+function routeFromHash(){
+  const h = pendingHash; if (!h.startsWith('m-')) { pendingHash = ''; return; }
+  const id = h.slice(2); const m = memorials.find(x => x.id === id);
+  if (m) { pendingHash = ''; openMemorialCard(m); }
+}
+addEventListener('hashchange', () => { pendingHash = (location.hash||'').slice(1); if (!pendingHash && ctx.kind === 'room') leaveRoom(); else if (entered) routeFromHash(); });
+
+/* =================== UI =================== */
+$('enter').onclick = () => {
+  myName = ($('fName').value.trim() || '이름 없는 이').slice(0,16); store.set('garden.name', myName);
+  store.set('garden.face', myFace); store.set('garden.outfit', myOutfit);
+  store.set('garden.sex', mySex); store.set('garden.age', myAge);
+  me = makeAvatar(myName, myOutfit, myFace || null, { sex: mySex, age: myAge }); me.position.copy(pos);
+  saveMyFace();
+  $('welcome').hidden = true; entered = true; $('chat').hidden = false;
+  toast('공용 추모 공간에 들어왔어요. 제단에 촛불을 밝혀 보세요.');
+  if (pendingHash) setTimeout(routeFromHash, 900);
+};
+async function saveMyFace(){
+  if (!me) return;
+  try { if (myFace) await Net.putFace(vid, myFace); else await Net.deleteFace(vid); } catch(e){}
+}
+$('fName').addEventListener('keydown', e => { if (e.key==='Enter') $('enter').click(); });
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => $(b.dataset.close).classList.remove('open'));
+$('btnLetters').onclick = () => { $('treePanel').classList.remove('open'); $('letterPanel').classList.toggle('open'); };
+$('btnTree').onclick = () => { $('letterPanel').classList.remove('open'); $('treePanel').classList.toggle('open'); };
+$('btnBack').onclick = leaveRoom;
+$('btnHold').onclick = () => { if (!me) return; holding = !holding; setHold(me, holding); presenceDirty = true;
+  $('btnHold').textContent = holding ? '촛불 내리기' : '촛불 들기'; $('btnHold').setAttribute('aria-pressed', String(holding));
+  if (holding && ctx.kind === 'garden' && Math.hypot(pos.x-TREE.x, pos.z-TREE.z) > TREE.plaza) toast('세계수 광장에서 촛불을 들면 나무가 함께 밝아져요.'); };
+$('btnCandle').onclick = async () => { if (await addTo('offerings', { kind:'candle', name: myName, at: Date.now() })) toast('촛불 하나가 밝혀졌어요.'); };
+$('btnFlower').onclick = async () => { if (await addTo('offerings', { kind:'flower', name: myName, at: Date.now() })) toast('국화 한 송이를 놓았어요.'); };
+$('letterForm').addEventListener('submit', async e => {
+  e.preventDefault(); const to=$('fTo').value.trim(), msg=$('fMsg').value.trim(); if (!to||!msg) return;
+  if (await addTo('letters', { to, msg, name: myName, at: Date.now() })) { $('fMsg').value=''; toast(ctx.kind==='garden' ? '편지가 연못 위 등불이 되어 떠올랐어요.' : '편지가 등불이 되어 언덕 위에 떠올랐어요.'); }
+});
+$('memForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = $('mName').value.trim(); if (!name) return;
+  let photo = '';
+  const f = $('mPhoto').files[0];
+  if (f) { try { photo = await shrinkPhoto(f); } catch(err){ toast('사진을 읽지 못했어요. 다른 사진으로 시도해 주세요.'); return; } }
+  const m = { id: newId(), name, years: $('mYears').value.trim(), intro: $('mIntro').value.trim(), photo, by: myName, at: Date.now() };
+  if (await createMemorial(m)) { $('memForm').reset(); $('createBox').open = false; toast('세계수에 ' + name + '님의 빛이 맺혔어요. 목록이나 빛을 눌러 들어갈 수 있어요.'); }
+});
+
+/* =================== LOOP =================== */
+const clock = new THREE.Clock(); const fwd = new THREE.Vector3(), right = new THREE.Vector3(), mv = new THREE.Vector3(), camGoal = new THREE.Vector3();
+let nearAltar = null, plazaKey = '', lastRise = 0;
+const rises = Array.from({ length: 40 }, () => { const s=glow(emberTex,.5,0); s.visible=false; garden.add(s); return { s, on:false, k:0, a:new THREE.Vector3(), b:new THREE.Vector3() }; });
+function spawnRise(av){ const r = rises.find(x => !x.on); if (!r) return; r.on=true; r.k=0; r.s.visible=true;
+  r.a.set(av.position.x, av.userData.top + .2, av.position.z);
+  const ang=Math.random()*Math.PI*2, rr=1+Math.random()*4; r.b.set(TREE.x+Math.cos(ang)*rr, 8+Math.random()*5, TREE.z+Math.sin(ang)*rr); }
+function collide(p){
+  for (const c of colliders()) { const dx=p.x-c.x, dz=p.z-c.z, d=Math.hypot(dx,dz), m=c.r+.4; if (d<m && d>0) { p.x=c.x+dx/d*m; p.z=c.z+dz/d*m; } }
+  const lim = ctx.kind === 'garden' ? 38 : ROOM.bound; const d=Math.hypot(p.x,p.z); if (d>lim){ p.x*=lim/d; p.z*=lim/d; }
+}
+const defaultHint = '땅을 눌러 걷거나 WASD로 움직이세요. 드래그하면 시선이 돌아가고, 아래로 끌면 세계수를 올려다봅니다.';
+function tick(){
+  const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime;
+  fwd.set(-Math.sin(yaw),0,-Math.cos(yaw)); right.set(-fwd.z,0,fwd.x);
+  mv.set(0,0,0);
+  if (entered) {
+    if (keys.w||keys.arrowup) mv.add(fwd);
+    if (keys.s||keys.arrowdown) mv.sub(fwd);
+    if (keys.d||keys.arrowright) mv.add(right);
+    if (keys.a||keys.arrowleft) mv.sub(right);
+    if (keys.q) yaw += dt*1.6;
+    if (keys.e) yaw -= dt*1.6;
+    if (mv.lengthSq()>0) target = null;
+    else if (target) { mv.subVectors(target, pos); if (mv.length() < .15) { target = null; mv.set(0,0,0); } }
+  }
+  if (mv.lengthSq()>0) { mv.normalize().multiplyScalar(3.4*dt); pos.add(mv); collide(pos); if (me) me.rotation.y = Math.atan2(mv.x, mv.z); }
+  if (me) { me.position.x += (pos.x-me.position.x)*.35; me.position.z += (pos.z-me.position.z)*.35; me.position.y = 0; animateAvatar(me, mv.lengthSq()>0, t, dt); }
+
+
+  const A = altarPos();
+  const near = entered && Math.hypot(pos.x-A.x, pos.z-A.z) < A.r;
+  if (near !== nearAltar && !plazaKey) { nearAltar = near; $('btnCandle').disabled = $('btnFlower').disabled = !near;
+    $('hint').textContent = near ? (ctx.kind==='garden' ? '함께 쓰는 제단입니다. 촛불을 밝히거나 꽃을 놓을 수 있어요.' : '영정 앞입니다. 촛불을 밝히거나 꽃을 놓을 수 있어요.')
+      : (ctx.kind==='room' ? '언덕 위를 떠도는 등불을 누르면 편지를 읽을 수 있어요. 아래 버튼으로 언제든 공용 추모 공간에 돌아갈 수 있어요.' : defaultHint); }
+
+  // the World Tree brightens with every candle held on its square, and each candle sends a light up into it
+  if (garden.visible) {
+    const holders = [];
+    if (me && holding && Math.hypot(me.position.x-TREE.x, me.position.z-TREE.z) < TREE.plaza) holders.push(me);
+    for (const g of ghosts.values()) if (g.obj.userData.hold && Math.hypot(g.obj.position.x-TREE.x, g.obj.position.z-TREE.z) < TREE.plaza) holders.push(g.obj);
+    const n = holders.length;
+    treeLight.intensity += ((.6 + Math.min(n, 8)*.45) - treeLight.intensity) * Math.min(1, dt*2);
+    const leafBase = .4 + Math.min(n, 8)*.07;
+    treeLeaves.forEach(l => { l.material.opacity = leafBase + (reduceMotion ? 0 : .2*Math.sin(t*.9 + l.userData.p)); });
+    if (!reduceMotion && t - lastRise > 1.1) { lastRise = t; holders.forEach(h => spawnRise(h)); }
+    const inPlaza = entered && ctx.kind === 'garden' && Math.hypot(pos.x-TREE.x, pos.z-TREE.z) < TREE.plaza;
+    const key = inPlaza ? 'p' + n + (holding ? 'h' : '') : '';
+    if (key !== plazaKey) { plazaKey = key;
+      if (inPlaza) $('hint').textContent = n ? `세계수 광장 · 지금 ${n}명이 촛불을 들고 함께하고 있어요.` : '세계수 광장이에요. 촛불을 들면 든 사람 수만큼 나무가 밝아져요.';
+      else nearAltar = null; }
+  }
+  rises.forEach(r => { if (!r.on) return; r.k += dt/3; const k=r.k; if (k >= 1) { r.on=false; r.s.visible=false; return; }
+    r.s.position.set(r.a.x + (r.b.x-r.a.x)*k, r.a.y + (r.b.y-r.a.y)*(1-(1-k)*(1-k)), r.a.z + (r.b.z-r.a.z)*k); r.s.material.opacity = Math.sin(k*Math.PI)*.95; });
+
+  const dist = 8.5, ht = 4.6;
+  camGoal.set(pos.x + Math.sin(yaw)*dist, ht, pos.z + Math.cos(yaw)*dist);
+  camera.position.lerp(camGoal, entered ? .08 : .02);
+  camera.lookAt(pos.x, (ctx.kind === 'garden' && !entered ? 4 : 1.3) + lift, pos.z);
+
+  if (!reduceMotion) {
+    offerObjs.forEach(o => { const u=o.userData; if (u.flame) { const f=1+Math.sin(t*12+u.p)*.12+Math.sin(t*7.3+u.p*2)*.08; u.flame.scale.set(1,1.8*f,1); u.glow.material.opacity=.75+.2*Math.sin(t*9+u.p); } });
+    if (garden.visible) {
+      flies.forEach(f => { const u=f.userData; f.position.set(u.o.x+Math.sin(t*.3+u.p)*1.5, u.o.y+Math.sin(t*.7+u.p)*.5, u.o.z+Math.cos(t*.25+u.p)*1.5); f.material.opacity=.4+.5*Math.max(0,Math.sin(t*1.3+u.p)); });
+      ringGlow.material.opacity = .45 + .15*Math.sin(t*.9);
+      memorialFruits.children.forEach(g => { g.position.y += Math.sin(t*.8 + g.userData.p)*.002; });
+    } else {
+      roomMotes.forEach(f => { const u=f.userData; f.position.set(u.o.x+Math.sin(t*.2+u.p)*1.2, u.o.y+Math.sin(t*.5+u.p)*.6, u.o.z+Math.cos(t*.18+u.p)*1.2); f.material.opacity=.3+.5*Math.max(0,Math.sin(t*1.1+u.p)); });
+      roomLight.position.y = 4.5 + Math.sin(t*2)*.05;
+    }
+  }
+  const inRoom = ctx.kind === 'room', cx = inRoom ? 0 : POND.x, cz = inRoom ? 0 : POND.z;
+  lanterns.forEach(l => { const u=l.userData; const a=u.a + (reduceMotion?0:t*u.sp); l.position.set(cx+Math.cos(a)*u.r, u.h+(reduceMotion?0:Math.sin(t*1.2+u.p)*(inRoom?.25:.04)), cz+Math.sin(a)*u.r); });
+  for (const g of ghosts.values()) { if (g.tx===undefined) continue; const ddx=(g.tx-g.obj.position.x)*.15, ddz=(g.tz-g.obj.position.z)*.15; g.obj.position.x += ddx; g.obj.position.z += ddz; g.obj.rotation.y = g.ry; animateAvatar(g.obj, Math.hypot(ddx,ddz) > .004, t, dt); }
+  sendPresence(t*1000);
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+setScene('garden');
+subscribeContext();
+camera.position.set(0, 7, 24);
+tick();
+})();
+</script>
+</body>
+</html>
