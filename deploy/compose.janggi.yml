@@ -1,0 +1,14 @@
+# 장기 앱(~/janggigame)의 caddy가 추모 서버로 요청을 넘길 수 있게 장기 앱의 도커 네트워크에 붙인다.
+# 장기 앱 caddy에서는 memorial-server:8080 으로 보인다. 장기 앱을 먼저 띄워 두어야 한다.
+services:
+  server:
+    networks:
+      default:
+      janggi:
+        aliases:
+          - memorial-server
+
+networks:
+  janggi:
+    external: true
+    name: janggigame_default

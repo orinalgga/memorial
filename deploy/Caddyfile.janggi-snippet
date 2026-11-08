@@ -1,0 +1,7 @@
+# 장기 앱 저장소의 deploy/Caddyfile 끝에 붙이는 블록.
+# 장기 앱 docker-compose.yml의 caddy environment에도 MEMORIAL_API_HOST: ${MEMORIAL_API_HOST:-memorial.localhost} 를 더하고,
+# ~/janggigame/.env에 MEMORIAL_API_HOST=memorial.<공인 IP>.sslip.io 를 넣는다.
+{$MEMORIAL_API_HOST} {
+	encode gzip
+	reverse_proxy memorial-server:8080
+}
