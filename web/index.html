@@ -360,31 +360,65 @@ const ringGlow = glow(emberTex, 2.4, .55); ringGlow.position.copy(ring.position)
 const TREE = { x: 0, z: -17, door: { x: 0, z: -14.5 }, plaza: 9.5 };
 const worldTree = new THREE.Group(); worldTree.position.set(TREE.x, 0, TREE.z); garden.add(worldTree);
 const treeLeaves = [];
-const treeLight = new THREE.PointLight(0xffd59a, .6, 26, 2); treeLight.position.set(0, 7, 0); worldTree.add(treeLight);
+const goldTex = glowTexture(255,206,120), dawnTex = glowTexture(255,236,190);
+const treeLight = new THREE.PointLight(0xffb867, 1.2, 46, 1.6); treeLight.position.set(0, 12, 0); worldTree.add(treeLight);
+const trunkLight = new THREE.PointLight(0xff9a4a, .9, 16, 2); trunkLight.position.set(0, 2.2, 4.6); worldTree.add(trunkLight);
+const treeMotes = [];
 {
-  const sq = new THREE.Mesh(new THREE.CircleGeometry(TREE.plaza, 64), new THREE.MeshLambertMaterial({ color: 0x343640 })); sq.rotation.x=-Math.PI/2; sq.position.y=.012; worldTree.add(sq);
-  const edge = new THREE.Mesh(new THREE.RingGeometry(TREE.plaza-.25, TREE.plaza, 64), new THREE.MeshBasicMaterial({ color: 0x55525a })); edge.rotation.x=-Math.PI/2; edge.position.y=.02; worldTree.add(edge);
-  const inner = new THREE.Mesh(new THREE.RingGeometry(3.4, 3.6, 64), new THREE.MeshBasicMaterial({ color: 0x8a7650 })); inner.rotation.x=-Math.PI/2; inner.position.y=.02; worldTree.add(inner);
-  const tr = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 2.4, 7.5, 16), barkMat); tr.position.y = 3.75; worldTree.add(tr);
-  for (let i=0;i<8;i++){ const a=i/8*Math.PI*2+.2; if (Math.abs(Math.sin(a)-1) < .15) continue; const root=new THREE.Mesh(new THREE.CylinderGeometry(.22,.6,3.2,7), barkMat);
-    root.position.set(Math.cos(a)*2.4, .45, Math.sin(a)*2.4); root.rotation.z = Math.cos(a)*1.2; root.rotation.x = -Math.sin(a)*1.2; worldTree.add(root); }
-  const branchDirs = [[1,.45,.2],[-1,.5,.1],[.35,.5,1],[-.4,.45,-1],[.8,.6,-.7],[-.8,.6,.8],[.1,.4,-1]];
-  branchDirs.forEach(([x,y,z]) => { const b=new THREE.Mesh(new THREE.CylinderGeometry(.25,.7,6,7), barkMat); const v=new THREE.Vector3(x,y,z).normalize();
-    b.position.set(v.x*2.8, 6.6+v.y*2.6, v.z*2.8); b.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), v); worldTree.add(b); });
-  const crownMat = new THREE.MeshLambertMaterial({ color: 0x264a44, emissive: 0x0c2622 });
-  [[0,11.5,0,5],[4.6,10,1,3.6],[-4.6,10.3,-.5,3.8],[1,10,4.6,3.4],[-1,10.2,-4.6,3.5],[3.6,12.6,-3,3.2],[-3.6,12.6,3,3.2],[0,14.2,0,3.4]].forEach(([x,y,z,r]) => {
-    const m=new THREE.Mesh(new THREE.IcosahedronGeometry(r,1), crownMat); m.position.set(x,y,z); worldTree.add(m); });
-  for (let i=0;i<150;i++){ const g=glow(leafTex, .55, .55); const a=Math.random()*Math.PI*2, r=2+Math.random()*7; g.position.set(Math.cos(a)*r, 7+Math.random()*8, Math.sin(a)*r); g.userData.p=Math.random()*6; worldTree.add(g); treeLeaves.push(g); }
+  const sq = new THREE.Mesh(new THREE.CircleGeometry(TREE.plaza, 64), new THREE.MeshLambertMaterial({ color: 0x3d3833 })); sq.rotation.x=-Math.PI/2; sq.position.y=.012; worldTree.add(sq);
+  const edge = new THREE.Mesh(new THREE.RingGeometry(TREE.plaza-.25, TREE.plaza, 64), new THREE.MeshBasicMaterial({ color: 0x6a5a48 })); edge.rotation.x=-Math.PI/2; edge.position.y=.02; worldTree.add(edge);
+  const inner = new THREE.Mesh(new THREE.RingGeometry(4.5, 4.75, 64), new THREE.MeshBasicMaterial({ color: 0xb08a50 })); inner.rotation.x=-Math.PI/2; inner.position.y=.02; worldTree.add(inner);
+  // a warm pool of light on the square, as if the tree itself were glowing
+  { const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d'); const gr=x.createRadialGradient(64,64,0,64,64,64);
+    gr.addColorStop(0,'rgba(255,190,110,.55)'); gr.addColorStop(.5,'rgba(255,160,80,.18)'); gr.addColorStop(1,'rgba(255,150,70,0)'); x.fillStyle=gr; x.fillRect(0,0,128,128);
+    const pool=new THREE.Mesh(new THREE.PlaneGeometry(TREE.plaza*2.2, TREE.plaza*2.2), new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(c), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending }));
+    pool.rotation.x=-Math.PI/2; pool.position.y=.03; worldTree.add(pool); }
+  // a braided trunk: several great stems twisting around one another
+  const bark = new THREE.MeshLambertMaterial({ color: 0x5a3f2c, emissive: 0x1e0f05, flatShading: true });
+  for (let i=0;i<5;i++){ const a=i/5*Math.PI*2; const st=new THREE.Mesh(new THREE.CylinderGeometry(.9, 1.7, 13, 9), bark);
+    st.position.set(Math.cos(a)*1.1, 6.2, Math.sin(a)*1.1); st.rotation.z=Math.cos(a+1.2)*.12; st.rotation.x=-Math.sin(a+1.2)*.12; worldTree.add(st); }
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.8, 12, 12), bark); core.position.y=6; worldTree.add(core);
+  // great buttress roots flowing out over the square (the path side stays open)
+  for (let i=0;i<11;i++){ const a=i/11*Math.PI*2+.15; if (Math.abs(Math.sin(a)-1) < .2) continue; const len=3.6+(i%3)*.7;
+    const root=new THREE.Mesh(new THREE.CylinderGeometry(.18,.95,len,7), bark); const d=2.3+len*.35;
+    root.position.set(Math.cos(a)*d, .55, Math.sin(a)*d); root.rotation.z = Math.cos(a)*1.25; root.rotation.x = -Math.sin(a)*1.25; worldTree.add(root); }
+  // two tiers of long, reaching limbs
+  const limbs = [];
+  for (let i=0;i<9;i++){ const a=i/9*Math.PI*2+.3, up=.55+(i%3)*.12; limbs.push([Math.cos(a), up, Math.sin(a), 10.5, 8]); }
+  for (let i=0;i<7;i++){ const a=i/7*Math.PI*2+.75, up=.9+(i%2)*.15; limbs.push([Math.cos(a)*.8, up, Math.sin(a)*.8, 13.5, 6]); }
+  limbs.forEach(([x,y,z,h,len]) => { const v=new THREE.Vector3(x,y,z).normalize(); const b=new THREE.Mesh(new THREE.CylinderGeometry(.25,.75,len,7), bark);
+    b.position.set(v.x*len*.45, h+v.y*len*.45, v.z*len*.45); b.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), v); worldTree.add(b); });
+  // a wide, layered crown in warm late-summer tones
+  const crownMats = [0x5a6a2e, 0x6e6a2a, 0x7c5e26, 0x4c5e30].map(c => new THREE.MeshLambertMaterial({ color: c, emissive: 0x3a2208, flatShading: true }));
+  let k = 0;
+  const blob = (x,y,z,r) => { const m=new THREE.Mesh(new THREE.IcosahedronGeometry(r,1), crownMats[k++ % crownMats.length]); m.position.set(x,y,z); m.scale.y=.72; worldTree.add(m); };
+  blob(0,19,0,6);
+  for (let i=0;i<10;i++){ const a=i/10*Math.PI*2; blob(Math.cos(a)*8.5, 15.2+(i%3)*.6, Math.sin(a)*8.5, 3.6+(i%2)*.6); }
+  for (let i=0;i<8;i++){ const a=i/8*Math.PI*2+.4; blob(Math.cos(a)*5, 18+(i%2)*.8, Math.sin(a)*5, 4.2); }
+  for (let i=0;i<5;i++){ const a=i/5*Math.PI*2+.9; blob(Math.cos(a)*2.4, 21.5, Math.sin(a)*2.4, 3.2); }
+  // golden light caught in the leaves; it breathes, and grows with the candles below
+  for (let i=0;i<260;i++){ const g=glow(i%5 ? goldTex : leafTex, .5+Math.random()*.5, .6); const a=Math.random()*Math.PI*2, rr=1.5+Math.random()*10.5;
+    g.position.set(Math.cos(a)*rr, 12.5+Math.random()*10 - rr*.25, Math.sin(a)*rr); g.userData.p=Math.random()*6; worldTree.add(g); treeLeaves.push(g); }
+  // a soft halo around the whole crown
+  const halo = glow(emberTex, 42, .16); halo.position.set(0, 17, -2); worldTree.add(halo);
+  // little lanterns hanging on threads from the lower edge of the crown
+  const threadMat = new THREE.MeshBasicMaterial({ color: 0x8a6f48 });
+  for (let i=0;i<36;i++){ const a=i/36*Math.PI*2+(i%3)*.05, rr=6.4+(i%4)*.9, top=13.2-(i%4)*.3, len=1.2+(i%5)*.5;
+    const th=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,len,3), threadMat); th.position.set(Math.cos(a)*rr, top-len/2, Math.sin(a)*rr); worldTree.add(th);
+    const l=glow(goldTex, .9, .95); l.position.set(Math.cos(a)*rr, top-len, Math.sin(a)*rr); worldTree.add(l); }
+  // golden motes drifting down from the crown
+  for (let i=0;i<60;i++){ const g=glow(dawnTex,.22,.8); const a=Math.random()*Math.PI*2, rr=1+Math.random()*10;
+    g.userData={ a, rr, p:Math.random(), sp:.03+Math.random()*.05 }; worldTree.add(g); treeMotes.push(g); }
   // lantern posts on the square's edge
   for (let i=0;i<12;i++){ const a=i/12*Math.PI*2+Math.PI/12; const x=Math.cos(a)*(TREE.plaza-.6), z=Math.sin(a)*(TREE.plaza-.6);
     const post=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,1.6,6), new THREE.MeshLambertMaterial({ color: 0x2a2a30 })); post.position.set(x,.8,z); worldTree.add(post);
-    const l=glow(emberTex, 1.3, .8); l.position.set(x,1.7,z); worldTree.add(l); }
+    const l=glow(goldTex, 1.4, .85); l.position.set(x,1.7,z); worldTree.add(l); }
 }
 const memorialFruits = new THREE.Group(); worldTree.add(memorialFruits);
 const fruitMeshes = [];
 
 /* surrounding pines & benches */
-const gardenColliders = [{ x:0, z:0, r:2.4 }, { x:TREE.x, z:TREE.z, r:2.6 }];
+const gardenColliders = [{ x:0, z:0, r:2.4 }, { x:TREE.x, z:TREE.z, r:3.8 }];
 const pineMat = new THREE.MeshLambertMaterial({ color: 0x1f3a33 });
 function pine(x,z,s){ const g=new THREE.Group(); const t=new THREE.Mesh(new THREE.CylinderGeometry(.15*s,.22*s,1.2*s,6),trunkMat); t.position.y=.6*s; g.add(t);
   for(let k=0;k<3;k++){ const c=new THREE.Mesh(new THREE.ConeGeometry((1.3-k*.3)*s,1.6*s,7),pineMat); c.position.y=(1.4+k*.8)*s; g.add(c); }
@@ -428,9 +462,10 @@ const meadow = new THREE.Mesh(new THREE.CircleGeometry(90, 64), new THREE.MeshLa
   // the World Tree, far away on the horizon
   const far = new THREE.Group(); far.position.set(-14, 0, -70); roomG.add(far);
   const ft = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 2.4, 9, 10), new THREE.MeshLambertMaterial({ color: 0x241c18 })); ft.position.y = 4.5; far.add(ft);
-  const fc = new THREE.MeshLambertMaterial({ color: 0x1c3530, emissive: 0x0a1c18 });
+  const fc = new THREE.MeshLambertMaterial({ color: 0x4a4a24, emissive: 0x2a1606, flatShading: true });
   [[0,13,0,6.5],[5,11,0,4.5],[-5,11.5,0,4.6],[0,16,0,4.2]].forEach(([x,y,z,r]) => { const m=new THREE.Mesh(new THREE.IcosahedronGeometry(r,1), fc); m.position.set(x,y,z); far.add(m); });
-  for (let i=0;i<40;i++){ const g=glow(leafTex, 1.2, .6); const a=Math.random()*Math.PI*2, r=Math.random()*7; g.position.set(Math.cos(a)*r, 9+Math.random()*9, 3); far.add(g); }
+  { const h=glow(emberTex, 40, .14); h.position.set(0, 13, 0); far.add(h); }
+  for (let i=0;i<60;i++){ const g=glow(i%4 ? goldTex : leafTex, 1.2, .7); const a=Math.random()*Math.PI*2, r=Math.random()*7; g.position.set(Math.cos(a)*r, 9+Math.random()*9, 3); far.add(g); }
   // moon and stars
   const moon = new THREE.Mesh(new THREE.SphereGeometry(4, 24, 16), new THREE.MeshBasicMaterial({ color: 0xf1ead8, fog: false })); moon.position.set(40, 48, -90); roomG.add(moon);
   const mg = glow(paleTex, 30, .5); mg.material.fog = false; mg.position.copy(moon.position); roomG.add(mg);
@@ -603,7 +638,7 @@ const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 let down = null;
 const roomFloor = meadow;
 canvas.addEventListener('pointerdown', e => { down = { x:e.clientX, y:e.clientY, yaw, lift, moved:false }; canvas.setPointerCapture(e.pointerId); });
-canvas.addEventListener('pointermove', e => { if (!down) return; const dx=e.clientX-down.x; if (Math.abs(dx)>6||Math.abs(e.clientY-down.y)>6) down.moved=true; if (down.moved) { yaw = down.yaw - dx*0.008; lift = Math.max(0, Math.min(ctx.kind==='garden' ? 14 : 5, down.lift + (e.clientY-down.y)*0.03)); } });
+canvas.addEventListener('pointermove', e => { if (!down) return; const dx=e.clientX-down.x; if (Math.abs(dx)>6||Math.abs(e.clientY-down.y)>6) down.moved=true; if (down.moved) { yaw = down.yaw - dx*0.008; lift = Math.max(0, Math.min(ctx.kind==='garden' ? 14 : 5, down.lift - (e.clientY-down.y)*0.03)); } });
 canvas.addEventListener('pointerup', e => {
   if (down && !down.moved && entered) {
     ndc.set(e.clientX/innerWidth*2-1, -(e.clientY/innerHeight)*2+1); ray.setFromCamera(ndc, camera);
@@ -755,7 +790,7 @@ let memorials = [];
 function renderMemorials(){
   memorialFruits.clear(); fruitMeshes.length = 0;
   memorials.slice(0, 80).forEach((m, i) => {
-    const a = i*2.399 + .4, r = 4.8 + (i*0.618 % 1)*2.8, y = 5.4 + (i*0.37 % 1)*2;
+    const a = i*2.399 + .4, r = 5.2 + (i*0.618 % 1)*3.6, y = 8.6 + (i*0.37 % 1)*2.4;
     const g = new THREE.Group(); g.position.set(Math.cos(a)*r, y, Math.sin(a)*r);
     const hue = hueOf(m.name||'');
     const orb = new THREE.Mesh(new THREE.SphereGeometry(.45, 16, 12), new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(hue/360, .55, .78) }));
@@ -1026,12 +1061,12 @@ let nearAltar = null, plazaKey = '', lastRise = 0;
 const rises = Array.from({ length: 40 }, () => { const s=glow(emberTex,.5,0); s.visible=false; garden.add(s); return { s, on:false, k:0, a:new THREE.Vector3(), b:new THREE.Vector3() }; });
 function spawnRise(av){ const r = rises.find(x => !x.on); if (!r) return; r.on=true; r.k=0; r.s.visible=true;
   r.a.set(av.position.x, av.userData.top + .2, av.position.z);
-  const ang=Math.random()*Math.PI*2, rr=1+Math.random()*4; r.b.set(TREE.x+Math.cos(ang)*rr, 8+Math.random()*5, TREE.z+Math.sin(ang)*rr); }
+  const ang=Math.random()*Math.PI*2, rr=1+Math.random()*4; r.b.set(TREE.x+Math.cos(ang)*rr, 13+Math.random()*7, TREE.z+Math.sin(ang)*rr); }
 function collide(p){
   for (const c of colliders()) { const dx=p.x-c.x, dz=p.z-c.z, d=Math.hypot(dx,dz), m=c.r+.4; if (d<m && d>0) { p.x=c.x+dx/d*m; p.z=c.z+dz/d*m; } }
   const lim = ctx.kind === 'garden' ? 38 : ROOM.bound; const d=Math.hypot(p.x,p.z); if (d>lim){ p.x*=lim/d; p.z*=lim/d; }
 }
-const defaultHint = '땅을 눌러 걷거나 WASD로 움직이세요. 드래그하면 시선이 돌아가고, 아래로 끌면 세계수를 올려다봅니다.';
+const defaultHint = '땅을 눌러 걷거나 WASD로 움직이세요. 드래그하면 시선이 돌아가고, 위로 끌면 세계수를 올려다봅니다.';
 function tick(){
   const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime;
   fwd.set(-Math.sin(yaw),0,-Math.cos(yaw)); right.set(-fwd.z,0,fwd.x);
@@ -1062,8 +1097,8 @@ function tick(){
     if (me && holding && Math.hypot(me.position.x-TREE.x, me.position.z-TREE.z) < TREE.plaza) holders.push(me);
     for (const g of ghosts.values()) if (g.obj.userData.hold && Math.hypot(g.obj.position.x-TREE.x, g.obj.position.z-TREE.z) < TREE.plaza) holders.push(g.obj);
     const n = holders.length;
-    treeLight.intensity += ((.6 + Math.min(n, 8)*.45) - treeLight.intensity) * Math.min(1, dt*2);
-    const leafBase = .4 + Math.min(n, 8)*.07;
+    treeLight.intensity += ((1.2 + Math.min(n, 8)*.5) - treeLight.intensity) * Math.min(1, dt*2);
+    const leafBase = .5 + Math.min(n, 8)*.06;
     treeLeaves.forEach(l => { l.material.opacity = leafBase + (reduceMotion ? 0 : .2*Math.sin(t*.9 + l.userData.p)); });
     if (!reduceMotion && t - lastRise > 1.1) { lastRise = t; holders.forEach(h => spawnRise(h)); }
     const inPlaza = entered && ctx.kind === 'garden' && Math.hypot(pos.x-TREE.x, pos.z-TREE.z) < TREE.plaza;
@@ -1083,6 +1118,7 @@ function tick(){
   if (!reduceMotion) {
     offerObjs.forEach(o => { const u=o.userData; if (u.flame) { const f=1+Math.sin(t*12+u.p)*.12+Math.sin(t*7.3+u.p*2)*.08; u.flame.scale.set(1,1.8*f,1); u.glow.material.opacity=.75+.2*Math.sin(t*9+u.p); } });
     if (garden.visible) {
+      treeMotes.forEach(g => { const u=g.userData; const k=(u.p + t*u.sp) % 1; g.position.set(Math.cos(u.a+t*.05)*u.rr, 14*(1-k), Math.sin(u.a+t*.05)*u.rr); g.material.opacity = Math.sin(k*Math.PI)*.85; });
       flies.forEach(f => { const u=f.userData; f.position.set(u.o.x+Math.sin(t*.3+u.p)*1.5, u.o.y+Math.sin(t*.7+u.p)*.5, u.o.z+Math.cos(t*.25+u.p)*1.5); f.material.opacity=.4+.5*Math.max(0,Math.sin(t*1.3+u.p)); });
       ringGlow.material.opacity = .45 + .15*Math.sin(t*.9);
       memorialFruits.children.forEach(g => { g.position.y += Math.sin(t*.8 + g.userData.p)*.002; });
