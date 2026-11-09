@@ -1058,6 +1058,38 @@ $('memForm').addEventListener('submit', async e => {
 /* =================== LOOP =================== */
 const clock = new THREE.Clock(); const fwd = new THREE.Vector3(), right = new THREE.Vector3(), mv = new THREE.Vector3(), camGoal = new THREE.Vector3();
 let nearAltar = null, plazaKey = '', lastRise = 0;
+/* shooting stars: now and then a meteor streaks across the night sky, in the garden and on the hillsides alike */
+const meteors = Array.from({ length: 3 }, () => {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(6), 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute([1, .95, .82, 0, 0, 0], 3));
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  const head = glow(dawnTex, 3.2, 0); head.material.fog = false;
+  const tail = Array.from({ length: 8 }, (_, i) => { const g = glow(dawnTex, 2.4*(1-i/9), 0); g.material.fog = false; g.visible = false; scene.add(g); return g; });
+  line.visible = head.visible = false; line.frustumCulled = false; scene.add(line); scene.add(head);
+  return { line, head, tail, on: false, k: 0, dur: 1, a: new THREE.Vector3(), d: new THREE.Vector3(), len: 14 };
+});
+let nextMeteor = 3;
+function launchMeteor(){
+  const m = meteors.find(x => !x.on); if (!m) return;
+  camera.getWorldDirection(meteorT); // mostly where the viewer is looking
+  const ang = Math.atan2(meteorT.z, meteorT.x) + (Math.random()-.5)*1.6, R = 90 + Math.random()*30;
+  m.a.set(camera.position.x + Math.cos(ang)*R, 55 + Math.random()*35, camera.position.z + Math.sin(ang)*R);
+  const side = ang + Math.PI/2 * (Math.random() < .5 ? 1 : -1);
+  m.d.set(Math.cos(side), -.35 - Math.random()*.25, Math.sin(side)).normalize().multiplyScalar(55 + Math.random()*35);
+  m.len = 10 + Math.random()*10; m.dur = .9 + Math.random()*.7; m.k = 0; m.on = true; m.line.visible = m.head.visible = true; m.tail.forEach(g => g.visible = true);
+}
+const meteorP = new THREE.Vector3(), meteorT = new THREE.Vector3();
+function tickMeteors(t, dt){
+  if (reduceMotion) return;
+  if (t > nextMeteor) { launchMeteor(); if (Math.random() < .2) setTimeout(launchMeteor, 350); nextMeteor = t + 5 + Math.random()*9; }
+  meteors.forEach(m => { if (!m.on) return; m.k += dt/m.dur; if (m.k >= 1) { m.on = false; m.line.visible = m.head.visible = false; m.tail.forEach(g => g.visible = false); return; }
+    const fade = Math.sin(m.k*Math.PI);
+    meteorP.copy(m.a).addScaledVector(m.d, m.k); meteorT.copy(m.d).normalize().multiplyScalar(-m.len*fade).add(meteorP);
+    const pos = m.line.geometry.attributes.position; pos.setXYZ(0, meteorP.x, meteorP.y, meteorP.z); pos.setXYZ(1, meteorT.x, meteorT.y, meteorT.z); pos.needsUpdate = true;
+    m.line.material.opacity = fade; m.head.position.copy(meteorP); m.head.material.opacity = fade*.9;
+    m.tail.forEach((g, i) => { g.position.lerpVectors(meteorP, meteorT, (i+1)/9); g.material.opacity = fade*.55*(1-i/8); }); });
+}
 const rises = Array.from({ length: 40 }, () => { const s=glow(emberTex,.5,0); s.visible=false; garden.add(s); return { s, on:false, k:0, a:new THREE.Vector3(), b:new THREE.Vector3() }; });
 function spawnRise(av){ const r = rises.find(x => !x.on); if (!r) return; r.on=true; r.k=0; r.s.visible=true;
   r.a.set(av.position.x, av.userData.top + .2, av.position.z);
@@ -1107,6 +1139,7 @@ function tick(){
       if (inPlaza) $('hint').textContent = n ? `세계수 광장 · 지금 ${n}명이 촛불을 들고 함께하고 있어요.` : '세계수 광장이에요. 촛불을 들면 든 사람 수만큼 나무가 밝아져요.';
       else nearAltar = null; }
   }
+  tickMeteors(t, dt);
   rises.forEach(r => { if (!r.on) return; r.k += dt/3; const k=r.k; if (k >= 1) { r.on=false; r.s.visible=false; return; }
     r.s.position.set(r.a.x + (r.b.x-r.a.x)*k, r.a.y + (r.b.y-r.a.y)*(1-(1-k)*(1-k)), r.a.z + (r.b.z-r.a.z)*k); r.s.material.opacity = Math.sin(k*Math.PI)*.95; });
 
