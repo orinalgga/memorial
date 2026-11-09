@@ -1,0 +1,28 @@
+name: Web pages
+
+# main에 올라올 때마다 web/ 폴더를 Cloudflare Pages(memorial-1gr.pages.dev)에 올린다.
+# 저장소 Secrets에 CLOUDFLARE_API_TOKEN(Pages 편집 권한), CLOUDFLARE_ACCOUNT_ID가 있어야 한다.
+# Pages 프로젝트 이름이 memorial이 아니면 저장소 Variables에 CF_PAGES_PROJECT로 적는다.
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', '.github/workflows/web-pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy web --project-name=${{ vars.CF_PAGES_PROJECT || 'memorial' }} --branch=main --commit-dirty=true
