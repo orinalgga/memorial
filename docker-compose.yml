@@ -30,6 +30,9 @@ services:
       POSTGRES_DB: memorial
       POSTGRES_USER: memorial
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-memorial}
+    # DB 툴(DBeaver 등)은 SSH 터널로 VM의 127.0.0.1:5433에 붙는다. 바깥 인터넷에는 열지 않는다.
+    ports:
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
