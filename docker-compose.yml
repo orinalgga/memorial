@@ -12,18 +12,19 @@ services:
       - "127.0.0.1:8081:8080"
     environment:
       MEMORIAL_CORS_ALLOWED_ORIGINS: ${MEMORIAL_CORS_ALLOWED_ORIGINS:-http://localhost:5500,http://127.0.0.1:5500,http://localhost:8000}
-      DB_URL: jdbc:postgresql://postgres:5432/memorial
+      DB_URL: jdbc:postgresql://memorial-db:5432/memorial
       DB_USER: memorial
       DB_PASSWORD: ${POSTGRES_PASSWORD:-memorial}
       MEMORIAL_WRITES_PER_MINUTE: ${MEMORIAL_WRITES_PER_MINUTE:-30}
       # 메모리가 작은 VM에서는 .env에 JAVA_TOOL_OPTIONS=-Xmx256m 처럼 힙을 줄인다.
       JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:-}
     depends_on:
-      - postgres
+      - memorial-db
     restart: unless-stopped
 
   # 장기 앱 DB와 섞이지 않도록 추모 앱만의 Postgres를 따로 둔다.
-  postgres:
+  # 서버는 장기 앱 네트워크에도 붙으므로, 장기 앱의 'postgres'와 겹치지 않는 이름을 쓴다.
+  memorial-db:
     image: postgres:16
     environment:
       POSTGRES_DB: memorial
