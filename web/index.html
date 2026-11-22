@@ -146,6 +146,12 @@ details form { margin-top: 10px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .cbtn { background: none; border: none; color: var(--mist); font-size: .8rem; padding: 4px 6px; }
 .cbtn:hover { color: var(--paper); }
+.chat-log .ln .del { background: none; border: none; color: var(--mist); font-size: .75rem; padding: 0 4px; margin-left: 4px; opacity: .7; }
+.chat-log .ln .del:hover { color: var(--paper); opacity: 1; }
+.mem-row { display: flex; gap: 6px; align-items: stretch; }
+.mem-row .mem { flex: 1; min-width: 0; }
+.mem-row .cbtn { flex: none; }
+.chip.admin { border-color: var(--ember); color: var(--ember); cursor: pointer; font: inherit; }
 .cmt.reply { margin-left: 22px; border-left: 2px solid rgba(242,180,90,.35); border-radius: 0 10px 10px 0; }
 .cmt .cbtn { padding: 2px 0; margin-top: 2px; font-size: .74rem; }
 .replying { display: flex; justify-content: space-between; align-items: center; font-size: .8rem; color: var(--ember); }
@@ -180,6 +186,7 @@ details form { margin-top: 10px; }
     <span class="chip">함께 있는 사람 <b id="stPeople">1</b></span>
     <span class="chip">촛불 <b id="stCandles">0</b></span>
     <span class="chip">꽃 <b id="stFlowers">0</b></span>
+    <button type="button" class="chip admin" id="adminBar" hidden title="관리자 모드 끄기">관리자 모드 · 끄기</button>
   </div>
 </div>
 
@@ -281,7 +288,7 @@ details form { margin-top: 10px; }
         <button class="act" type="submit">남기기</button>
       </form>
     </section>
-    <div class="row"><button class="act" id="rClose">닫기</button><button class="act primary" id="rHeart" hidden>공감해요</button><button class="act primary" id="rEnter" hidden>방에 들어가기</button></div>
+    <div class="row"><button class="act" id="rClose">닫기</button><button class="act primary" id="rHeart" hidden>공감해요</button><button class="act primary" id="rEnter" hidden>방에 들어가기</button><button class="act" id="rDelete" hidden>삭제</button></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -613,6 +620,16 @@ function segGroup(el, opts, get, set){ opts.forEach(([v,label]) => { const b=doc
 segGroup($('sexPick'), [['f','여성'],['m','남성'],['n','선택 안 함']], () => mySex, v => mySex = v);
 segGroup($('agePick'), [['child','어린이'],['young','청년'],['middle','중장년'],['senior','어르신']], () => myAge, v => myAge = v);
 let vid = store.get('garden.vid'); if (!vid) { vid = newId(); store.set('garden.vid', vid); }
+/* who wrote what: the visitor id above is shown to everyone, so writing also carries a secret key made once per browser.
+   The server keeps only its hash and shows its first 16 hex characters (owner); this browser computes the same tag to find its own posts. */
+let ownerKey = store.get('garden.ownerKey');
+if (!/^[a-z0-9]{24,64}$/.test(ownerKey || '')) { const a = new Uint8Array(24); crypto.getRandomValues(a); ownerKey = [...a].map(b => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join(''); store.set('garden.ownerKey', ownerKey); }
+let myTag = null;
+let adminToken = store.get('garden.admin') || '';
+const isMine = x => !!(x && x.owner && myTag && x.owner === myTag);
+const canDelete = x => isMine(x) || !!adminToken;
+const delHeaders = () => ({ 'X-Owner-Key': ownerKey, ...(adminToken ? { 'X-Admin-Token': adminToken } : {}) });
+const canDeleteMemorial = m => !!(adminToken || store.get('garden.edit.' + m.id));
 function showFace(){ $('facePreview').hidden = !myFace; $('faceEmpty').hidden = !!myFace; $('faceClear').hidden = !myFace; if (myFace) $('facePreview').src = myFace; }
 showFace();
 OUTFITS.forEach(([n,c]) => { const b=document.createElement('button'); b.type='button'; b.className='sw'; b.style.background=c; b.setAttribute('role','radio'); b.setAttribute('aria-label',n); b.title=n;
@@ -736,6 +753,7 @@ function renderLetters(){
     h.onclick = () => giveHeart(L);
     const cb=document.createElement('button'); cb.type='button'; cb.className='cbtn'; cb.textContent='댓글 ' + (L.comments||0); cb.onclick = () => openLetter(L);
     const right=document.createElement('div'); right.style.display='flex'; right.style.gap='4px'; right.style.alignItems='center'; right.append(cb, h);
+    if (canDelete(L)) { const del=document.createElement('button'); del.type='button'; del.className='cbtn'; del.textContent='삭제'; del.onclick = () => removeLetter(L); right.prepend(del); }
     foot.append(m, right); el.append(to,p,foot); box.append(el);
   });
 }
@@ -743,6 +761,7 @@ function openLetter(L){
   $('rTo').textContent = L.to + '에게'; $('rMsg').textContent = L.msg;
   $('rMeta').textContent = (L.name||'이름 없는 이') + ' · ' + fmtDate(L.at) + ' · 공감 ' + (L.hearts||0);
   $('rEnter').hidden = true; $('rHeart').hidden = false;
+  $('rDelete').hidden = !canDelete(L); $('rDelete').onclick = () => removeLetter(L);
   const done = hearted.has(heartKey(L)); $('rHeart').disabled = done; $('rHeart').textContent = done ? '공감했어요' : '공감해요';
   $('rHeart').onclick = async () => { if (await giveHeart(L)) { $('rHeart').disabled = true; $('rHeart').textContent = '공감했어요'; $('rMeta').textContent = (L.name||'이름 없는 이') + ' · ' + fmtDate(L.at) + ' · 공감 ' + L.hearts; } };
   openComments(L);
@@ -762,6 +781,7 @@ function renderComments(list){
     const b=document.createElement('b'); b.textContent = c.name || '이름 없는 이'; const t=document.createElement('span'); t.textContent = fmtDate(c.at);
     const x=document.createElement('div'); x.textContent = c.text; d.append(b, t, x);
     if (!isReply) { const r=document.createElement('button'); r.type='button'; r.className='cbtn'; r.textContent='답글 달기'; r.onclick = () => setReply(c); d.append(r); }
+    if (canDelete(c)) { const del=document.createElement('button'); del.type='button'; del.className='cbtn'; del.textContent='삭제'; del.onclick = () => removeComment(c); d.append(del); }
     box.append(d); };
   tops.forEach(c => { one(c, false); (kids.get(c.id) || []).forEach(k => one(k, true)); });
   // replies whose parent is missing still show, at the end
@@ -778,7 +798,7 @@ $('cForm').addEventListener('submit', async e => {
   e.preventDefault(); const text = $('cText').value.trim(); if (!text || !cLetter) return;
   const L = cLetter;
   try {
-    const c = await Net.addComment(L.id, { text, name: myName, visitorId: vid, parentId: replyTo && replyTo.id ? replyTo.id : null });
+    const c = await Net.addComment(L.id, { text, name: myName, visitorId: vid, ownerKey, parentId: replyTo && replyTo.id ? replyTo.id : null });
     if (cLetter === L && !cList.some(x => x.id === c.id)) { cList.push(c); renderComments(cList); L.comments = (L.comments||0) + 1; }
   } catch(err) { toast(err.message || '댓글을 남기지 못했어요. 잠시 뒤 다시 시도해 주세요.'); return; }
   $('cText').value = ''; setReply(null); renderLetters();
@@ -807,7 +827,11 @@ function renderMemorials(){
     const img=document.createElement('img'); img.alt=''; img.src = m.photo || avatarData(m);
     const d=document.createElement('div'); const s=document.createElement('strong'); s.textContent=m.name; const sp=document.createElement('span'); sp.textContent=[m.years, m.intro].filter(Boolean).join(' · ');
     const cnt=document.createElement('em'); cnt.className='cnt'; cnt.dataset.mid=m.id;
-    d.append(s, sp, cnt); b.append(img, d); b.onclick = () => enterRoom(m); box.append(b);
+    d.append(s, sp, cnt); b.append(img, d); b.onclick = () => enterRoom(m);
+    if (!canDeleteMemorial(m)) { box.append(b); return; }
+    const row=document.createElement('div'); row.className='mem-row';
+    const del=document.createElement('button'); del.type='button'; del.className='cbtn'; del.textContent='삭제'; del.setAttribute('aria-label', m.name + '님의 추모 공간 지우기'); del.onclick = () => removeMemorial(m);
+    row.append(b, del); box.append(row);
   });
 }
 function avatarData(m){ const c=document.createElement('canvas'); c.width=c.height=104; const x=c.getContext('2d'); const h=hueOf(m.name||''); x.fillStyle=`hsl(${h},25%,30%)`; x.fillRect(0,0,104,104); x.fillStyle='#efe6d4'; x.font='48px "Gowun Batang", serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText((m.name||'?')[0],52,56); return c.toDataURL(); }
@@ -817,6 +841,7 @@ function openMemorialCard(m){
   const vc = visitorCounts.get(m.id) || 0;
   $('rMeta').textContent = (m.by ? m.by + '님이 만든 공간 · ' : '') + fmtDate(m.at) + (vc ? ` · 지금 ${vc}명이 머무는 중` : '');
   $('rComments').hidden = true; closeComments();
+  $('rDelete').hidden = !canDeleteMemorial(m); $('rDelete').onclick = async () => { if (await removeMemorial(m)) $('reader').hidden = true; };
   $('rHeart').hidden = true; $('rEnter').textContent = '이 공간으로 이동하기'; $('rEnter').hidden = false; $('rEnter').onclick = () => { $('reader').hidden = true; enterRoom(m); };
   $('reader').hidden = false;
 }
@@ -854,12 +879,66 @@ function onSpaceEvent(type, d){
   }
   else if (type === 'offering') { if (!offerList.some(x => x.id === d.id)) { offerList.push(d); renderOfferings(offerList); } }
   else if (type === 'chat') onChat(d);
+  else if (type === 'letter-deleted') {
+    letters = letters.filter(x => x.id !== d.id); renderLetters();
+    if (cLetter && cLetter.id === d.id) { $('reader').hidden = true; closeComments(); }
+  }
+  else if (type === 'comment-deleted') {
+    const gone = new Set(d.ids || []);
+    const L = letters.find(x => x.id === d.letterId); if (L) { L.comments = d.comments; renderLetters(); }
+    if (cLetter && cLetter.id === d.letterId) { cList = cList.filter(c => !gone.has(c.id)); renderComments(cList); }
+  }
+  else if (type === 'chat-deleted') { if (chatList.some(m => m.id === d.id)) renderChat(chatList.filter(m => m.id !== d.id)); }
+  else if (type === 'space-deleted') dropMemorial(d.id);
 }
+/* deleting: your own posts with your secret key, anything with the admin token */
+async function removeLetter(L){
+  if (!confirm('이 사연을 지울까요? 달린 댓글과 공감도 함께 사라지고 되돌릴 수 없어요.')) return false;
+  try { await Net.deleteLetter(L.id, delHeaders()); } catch(e){ toast(e.message || '지우지 못했어요.'); return false; }
+  onSpaceEvent('letter-deleted', { id: L.id }); toast('사연을 지웠어요.'); return true;
+}
+async function removeComment(c){
+  if (!confirm(c.parent ? '이 답글을 지울까요?' : '이 댓글을 지울까요? 달린 답글도 함께 사라져요.')) return;
+  try { await Net.deleteComment(c.id, delHeaders()); } catch(e){ toast(e.message || '지우지 못했어요.'); return; }
+  const ids = cList.filter(x => x.id === c.id || x.parent === c.id).map(x => x.id);
+  const L = letters.find(x => x.id === c.letterId);
+  onSpaceEvent('comment-deleted', { letterId: c.letterId, ids, comments: Math.max(0, ((L && L.comments) || ids.length) - ids.length) });
+}
+async function removeChat(m){
+  if (!confirm('이 메시지를 지울까요?')) return;
+  try { await Net.deleteChat(m.id, delHeaders()); } catch(e){ toast(e.message || '지우지 못했어요.'); return; }
+  onSpaceEvent('chat-deleted', { id: m.id });
+}
+async function removeMemorial(m){
+  if (!confirm(m.name + '님의 추모 공간을 지울까요? 그 안의 편지, 촛불, 대화도 모두 사라지고 되돌릴 수 없어요.')) return false;
+  const h = {}; const t = store.get('garden.edit.' + m.id); if (t) h['X-Edit-Token'] = t; if (adminToken) h['X-Admin-Token'] = adminToken;
+  try { await Net.deleteMemorial(m.id, h); } catch(e){ toast(e.message || '지우지 못했어요.'); return false; }
+  dropMemorial(m.id); toast('추모 공간을 지웠어요.'); return true;
+}
+function dropMemorial(id){
+  if (!memorials.some(x => x.id === id)) return;
+  memorials = memorials.filter(x => x.id !== id); renderMemorials(); updateCounts();
+  if (ctx.kind === 'room' && ctx.memorial && ctx.memorial.id === id) { toast('이 추모 공간이 지워져 공용 추모 공간으로 돌아가요.'); leaveRoom(); }
+}
+function rerenderOwned(){ renderLetters(); renderMemorials(); updateCounts(); if (cLetter) renderComments(cList); if (chatList.length) renderChat(chatList.slice()); }
+if (crypto.subtle) crypto.subtle.digest('SHA-256', new TextEncoder().encode(ownerKey))
+  .then(b => { myTag = [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('').slice(0, 16); rerenderOwned(); }).catch(() => {});
+/* admin mode: open the page with #admin and enter the server's MEMORIAL_ADMIN_TOKEN */
+function showAdmin(){ $('adminBar').hidden = !adminToken; rerenderOwned(); }
+async function adminLogin(){
+  const t = (prompt('관리자 토큰을 넣어 주세요.') || '').trim(); if (!t) return;
+  try { await Net.adminCheck(t); } catch(e){ toast(e.message || '관리자 토큰을 확인하지 못했어요.'); return; }
+  adminToken = t; store.set('garden.admin', t); showAdmin(); toast('관리자 모드예요. 모든 글과 추모 공간에 삭제 버튼이 보여요.');
+}
+$('adminBar').onclick = () => { adminToken = ''; store.set('garden.admin', ''); showAdmin(); toast('관리자 모드를 껐어요.'); };
+function checkAdminHash(){ if (location.hash !== '#admin') return; try { history.replaceState(null, '', location.pathname + location.search); } catch(e){} pendingHash = ''; adminLogin(); }
+addEventListener('hashchange', checkAdminHash);
+setTimeout(() => { showAdmin(); checkAdminHash(); }, 0);
 async function addTo(name, data){
   const space = spaceKey();
   try {
     if (name === 'offerings') { const o = await Net.addOffering(space, { kind: data.kind, name: myName, visitorId: vid }); onSpaceEvent('offering', o); }
-    else { const l = await Net.addLetter(space, { to: data.to, message: data.msg, name: myName, visitorId: vid }); onSpaceEvent('letter', l); }
+    else { const l = await Net.addLetter(space, { to: data.to, message: data.msg, name: myName, visitorId: vid, ownerKey }); onSpaceEvent('letter', l); }
     return true;
   } catch(e){ toast(e.message || '지금은 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); return false; }
 }
@@ -871,7 +950,7 @@ async function createMemorial(m){
     upsertMemorial(r.memorial); return true;
   } catch(e){ toast(e.message || '공간을 열지 못했어요. 사진이 너무 크면 빼고 다시 시도해 주세요.'); return false; }
 }
-Net.onMemorial(upsertMemorial);
+Net.onMemorial(upsertMemorial, dropMemorial);
 Net.memorials().then(list => { memorials = list; renderMemorials(); updateCounts(); if (pendingHash && entered) routeFromHash(); }).catch(offline);
 
 /* =================== PRESENCE: who is in this space, and how many are in each personal space =================== */
@@ -936,7 +1015,9 @@ function avatarOfVid(k){ if (k === vid) return me; for (const g of ghosts.values
 function addChatLine(m){
   const em=$('chatLog').querySelector('.empty'); if (em) em.remove();
   const ln=document.createElement('div'); ln.className='ln' + (m.k === vid ? ' me' : '');
-  const b=document.createElement('b'); b.textContent=m.name || '이름 없는 이'; ln.append(b, document.createTextNode(m.text)); $('chatLog').append(ln);
+  const b=document.createElement('b'); b.textContent=m.name || '이름 없는 이'; ln.append(b, document.createTextNode(m.text));
+  if (canDelete(m)) { const del=document.createElement('button'); del.type='button'; del.className='del'; del.textContent='×'; del.title='메시지 지우기'; del.setAttribute('aria-label','메시지 지우기'); del.onclick = () => removeChat(m); ln.append(del); }
+  $('chatLog').append(ln);
   while ($('chatLog').children.length > 60) $('chatLog').firstChild.remove();
   $('chatLog').scrollTop = $('chatLog').scrollHeight;
 }
@@ -960,7 +1041,7 @@ if (innerWidth < 560) { $('chat').classList.add('closed'); $('chatToggle').setAt
 $('chatForm').addEventListener('submit', async e => {
   e.preventDefault(); const text=$('chatText').value.trim(); if (!text || !me) return;
   $('chatText').value='';
-  try { onChat(await Net.say(spaceKey(), { text, name: myName, visitorId: vid })); }
+  try { onChat(await Net.say(spaceKey(), { text, name: myName, visitorId: vid, ownerKey })); }
   catch(err){ toast(err.message || '메시지를 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.'); $('chatText').value=text; }
   $('chatText').blur();
 });

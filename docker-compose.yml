@@ -16,6 +16,7 @@ services:
       DB_USER: memorial
       DB_PASSWORD: ${POSTGRES_PASSWORD:-memorial}
       MEMORIAL_WRITES_PER_MINUTE: ${MEMORIAL_WRITES_PER_MINUTE:-30}
+      MEMORIAL_ADMIN_TOKEN: ${MEMORIAL_ADMIN_TOKEN:-}
       # 메모리가 작은 VM에서는 .env에 JAVA_TOOL_OPTIONS=-Xmx256m 처럼 힙을 줄인다.
       JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:-}
     depends_on:

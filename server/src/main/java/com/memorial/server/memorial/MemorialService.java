@@ -1,17 +1,22 @@
 package com.memorial.server.memorial;
 
+import com.memorial.server.chat.ChatRepository;
+import com.memorial.server.common.Access;
 import com.memorial.server.common.ApiException;
 import com.memorial.server.common.Ids;
 import com.memorial.server.common.Images;
 import com.memorial.server.common.Limits;
 import com.memorial.server.common.Text;
+import com.memorial.server.letter.LetterRepository;
 import com.memorial.server.live.Events;
+import com.memorial.server.offering.OfferingRepository;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,8 +29,17 @@ public class MemorialService {
     private final MemorialRepository repo;
     private final Limits limits;
     private final Events events;
+    private final Access access;
+    private final LetterRepository letters;
+    private final OfferingRepository offerings;
+    private final ChatRepository chat;
 
-    public MemorialService(MemorialRepository repo, Limits limits, Events events) {
+    public MemorialService(MemorialRepository repo, Limits limits, Events events, Access access, LetterRepository letters,
+            OfferingRepository offerings, ChatRepository chat) {
+        this.access = access;
+        this.letters = letters;
+        this.offerings = offerings;
+        this.chat = chat;
         this.repo = repo;
         this.limits = limits;
         this.events = events;
@@ -66,6 +80,18 @@ public class MemorialService {
         MemorialDto dto = MemorialDto.of(m);
         events.memorial(dto);
         return dto;
+    }
+
+    /** 만든 분(수정 토큰) 또는 관리자만 지울 수 있다. 그 공간의 편지·촛불·대화도 함께 지운다. */
+    @Transactional
+    public void delete(String id, String token, String adminToken) {
+        Memorial m = access.isAdmin(adminToken) ? get(id) : owned(id, token);
+        letters.deleteBySpace(id);
+        offerings.deleteBySpace(id);
+        chat.deleteBySpace(id);
+        repo.delete(m);
+        events.memorial(Map.of("id", id, "deleted", true));
+        events.space(id, "space-deleted", Map.of("id", id));
     }
 
     @Transactional(readOnly = true)

@@ -1,5 +1,6 @@
 package com.memorial.server.letter;
 
+import com.memorial.server.common.Access;
 import com.memorial.server.common.ApiException;
 import com.memorial.server.common.Ids;
 import com.memorial.server.common.Spaces;
@@ -11,6 +12,7 @@ import com.memorial.server.letter.LetterDtos.NewComment;
 import com.memorial.server.letter.LetterDtos.NewLetter;
 import com.memorial.server.live.Events;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.springframework.data.domain.PageRequest;
@@ -25,8 +27,11 @@ public class LetterService {
     private final CommentRepository comments;
     private final Spaces spaces;
     private final Events events;
+    private final Access access;
 
-    public LetterService(LetterRepository letters, LetterHeartRepository hearts, CommentRepository comments, Spaces spaces, Events events) {
+    public LetterService(LetterRepository letters, LetterHeartRepository hearts, CommentRepository comments, Spaces spaces, Events events,
+            Access access) {
+        this.access = access;
         this.letters = letters;
         this.hearts = hearts;
         this.comments = comments;
@@ -45,6 +50,7 @@ public class LetterService {
         spaces.require(space);
         Letter l = new Letter(Ids.newId(), space, Text.required(req.to(), 30, "받는 분"), Text.required(req.message(), 600, "전하고 싶은 말"),
                 Text.name(req.name()), visitor(req.visitorId()), Instant.now());
+        l.setOwnerHash(Access.ownerHash(req.ownerKey()));
         letters.save(l);
         LetterDto dto = LetterDto.of(l);
         events.space(space, "letter", dto);
@@ -84,11 +90,36 @@ public class LetterService {
         }
         Comment c = new Comment(Ids.newId(), letterId, parent, Text.name(req.name()), visitor(req.visitorId()),
                 Text.required(req.text(), 200, "댓글"), Instant.now());
+        c.setOwnerHash(Access.ownerHash(req.ownerKey()));
         comments.save(c);
         letters.addComment(letterId);
         CommentDto dto = CommentDto.of(c);
         events.space(l.getSpace(), "comment", Map.of("comment", dto, "comments", l.getCommentCount() + 1));
         return dto;
+    }
+
+    /** 사연을 지우면 그 공감과 댓글도 함께 지워진다(DB의 on delete cascade). */
+    @Transactional
+    public void deleteLetter(String letterId, String ownerKey, String adminToken) {
+        Letter l = letter(letterId);
+        access.requireOwnerOrAdmin(l.getOwnerHash(), ownerKey, adminToken, "사연");
+        letters.delete(l);
+        events.space(l.getSpace(), "letter-deleted", Map.of("id", letterId));
+    }
+
+    /** 댓글을 지우면 그 아래 답글도 함께 지운다. */
+    @Transactional
+    public void deleteComment(String commentId, String ownerKey, String adminToken) {
+        Comment c = comments.findById(commentId).orElseThrow(() -> ApiException.notFound("찾을 수 없는 댓글이에요."));
+        access.requireOwnerOrAdmin(c.getOwnerHash(), ownerKey, adminToken, "댓글");
+        List<Comment> gone = new ArrayList<>(comments.findByParentId(c.getId()));
+        gone.add(c);
+        comments.deleteAll(gone);
+        letters.removeComments(c.getLetterId(), gone.size());
+        Letter l = letter(c.getLetterId());
+        int left = Math.max(0, l.getCommentCount() - gone.size());
+        events.space(l.getSpace(), "comment-deleted",
+                Map.of("letterId", l.getId(), "ids", gone.stream().map(Comment::getId).toList(), "comments", left));
     }
 
     private Letter letter(String id) {

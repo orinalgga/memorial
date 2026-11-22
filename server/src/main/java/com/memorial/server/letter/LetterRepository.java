@@ -17,4 +17,12 @@ public interface LetterRepository extends JpaRepository<Letter, String> {
     @Modifying
     @Query("update Letter l set l.commentCount = l.commentCount + 1 where l.id = :id")
     void addComment(String id);
+
+    @Modifying
+    @Query("update Letter l set l.commentCount = case when l.commentCount > :n then l.commentCount - :n else 0 end where l.id = :id")
+    void removeComments(String id, int n);
+
+    @Modifying
+    @Query("delete from Letter l where l.space = :space")
+    int deleteBySpace(String space);
 }
