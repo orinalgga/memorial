@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface CommentRepository extends JpaRepository<Comment, String> {
 
     List<Comment> findByLetterIdOrderByCreatedAtAsc(String letterId, Pageable page);
+
+    List<Comment> findByParentId(String parentId);
 }

@@ -5,9 +5,9 @@ window.Net = (() => {
   const WS = (API || location.origin).replace(/^http/, 'ws') + '/ws';
   const ts = x => typeof x === 'number' ? x : (Date.parse(x) || Date.now());
 
-  const letter = d => ({ id: d.id, to: d.to, msg: d.message, name: d.name, hearts: d.hearts || 0, comments: d.comments || 0, at: ts(d.createdAt) });
-  const comment = d => ({ id: d.id, letterId: d.letterId, parent: d.parentId || undefined, name: d.name, text: d.text, at: ts(d.createdAt) });
-  const chat = d => ({ id: d.id, name: d.name, k: d.visitorId, text: d.text, at: ts(d.createdAt) });
+  const letter = d => ({ id: d.id, to: d.to, msg: d.message, name: d.name, hearts: d.hearts || 0, comments: d.comments || 0, at: ts(d.createdAt), owner: d.owner || null });
+  const comment = d => ({ id: d.id, letterId: d.letterId, parent: d.parentId || undefined, name: d.name, text: d.text, at: ts(d.createdAt), owner: d.owner || null });
+  const chat = d => ({ id: d.id, name: d.name, k: d.visitorId, text: d.text, at: ts(d.createdAt), owner: d.owner || null });
   const offering = d => ({ id: d.id, kind: d.kind, name: d.name, at: ts(d.createdAt) });
   const memorial = d => ({ id: d.id, name: d.name, years: d.years || '', intro: d.intro || '', by: d.createdBy || '', at: ts(d.createdAt),
     photo: d.hasPhoto ? `${API}/api/memorials/${d.id}/photo?v=${ts(d.createdAt)}` : '' });
@@ -51,7 +51,14 @@ window.Net = (() => {
       const r = await call('POST', '/api/memorials', { name: m.name, years: m.years, intro: m.intro, photo: m.photo || null, createdBy: m.by });
       return { memorial: memorial(r.memorial), editToken: r.editToken };
     },
-    onMemorial: cb => listen('/topic/memorials', d => cb(memorial(d))),
+    /* creator (edit token) or admin; everything in that space goes with it */
+    deleteMemorial: (id, headers) => call('DELETE', `/api/memorials/${sp(id)}`, null, headers),
+    onMemorial: (cb, onDeleted) => listen('/topic/memorials', d => { if (d && d.deleted) { if (onDeleted) onDeleted(d.id); } else cb(memorial(d)); }),
+    /* deleting: the writer's secret key (X-Owner-Key) or the admin token (X-Admin-Token) */
+    deleteLetter: (id, headers) => call('DELETE', `/api/letters/${sp(id)}`, null, headers),
+    deleteComment: (id, headers) => call('DELETE', `/api/comments/${sp(id)}`, null, headers),
+    deleteChat: (id, headers) => call('DELETE', `/api/chat/${sp(id)}`, null, headers),
+    adminCheck: token => call('POST', '/api/admin/check', null, { 'X-Admin-Token': token }),
     /* stories, empathy, comments */
     letters: async space => (await call('GET', `/api/spaces/${sp(space)}/letters`)).map(letter),
     addLetter: async (space, l) => letter(await call('POST', `/api/spaces/${sp(space)}/letters`, l)),
@@ -83,6 +90,7 @@ window.Net = (() => {
           else if (e.type === 'comment') onEvent('comment', { comment: comment(d.comment), comments: d.comments });
           else if (e.type === 'offering') onEvent('offering', offering(d));
           else if (e.type === 'chat') onEvent('chat', chat(d));
+          else if (e.type === 'letter-deleted' || e.type === 'comment-deleted' || e.type === 'chat-deleted' || e.type === 'space-deleted') onEvent(e.type, d);
         }),
         listen(`/topic/spaces/${space}/presence`, onPresence),
         listen(`/app/spaces/${space}/peers`, onPeers),

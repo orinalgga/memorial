@@ -1,11 +1,13 @@
 package com.memorial.server.memorial;
 
+import com.memorial.server.common.Access;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,6 +43,13 @@ public class MemorialController {
     public MemorialDto update(@PathVariable String id, @RequestHeader(value = "X-Edit-Token", required = false) String token,
             @RequestBody MemorialRequest req) {
         return service.update(id, token, req);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable String id, @RequestHeader(value = "X-Edit-Token", required = false) String token,
+            @RequestHeader(value = Access.ADMIN_HEADER, required = false) String adminToken) {
+        service.delete(id, token, adminToken);
     }
 
     @GetMapping("/{id}/photo")

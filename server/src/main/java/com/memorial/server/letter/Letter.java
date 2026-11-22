@@ -38,6 +38,9 @@ public class Letter {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "owner_hash")
+    private String ownerHash;
+
     protected Letter() {}
 
     public Letter(String id, String space, String toName, String message, String authorName, String visitorId, Instant createdAt) {
@@ -49,6 +52,9 @@ public class Letter {
         this.visitorId = visitorId;
         this.createdAt = createdAt;
     }
+
+    public String getOwnerHash() { return ownerHash; }
+    public void setOwnerHash(String ownerHash) { this.ownerHash = ownerHash; }
 
     public String getId() { return id; }
     public String getSpace() { return space; }

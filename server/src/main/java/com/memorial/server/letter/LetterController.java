@@ -6,12 +6,15 @@ import com.memorial.server.letter.LetterDtos.HeartResult;
 import com.memorial.server.letter.LetterDtos.LetterDto;
 import com.memorial.server.letter.LetterDtos.NewComment;
 import com.memorial.server.letter.LetterDtos.NewLetter;
+import com.memorial.server.common.Access;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -38,6 +41,20 @@ public class LetterController {
     @PostMapping("/api/letters/{id}/hearts")
     public HeartResult heart(@PathVariable String id, @RequestBody HeartRequest req) {
         return service.heart(id, req.visitorId());
+    }
+
+    @DeleteMapping("/api/letters/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable String id, @RequestHeader(value = Access.OWNER_HEADER, required = false) String ownerKey,
+            @RequestHeader(value = Access.ADMIN_HEADER, required = false) String adminToken) {
+        service.deleteLetter(id, ownerKey, adminToken);
+    }
+
+    @DeleteMapping("/api/comments/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteComment(@PathVariable String id, @RequestHeader(value = Access.OWNER_HEADER, required = false) String ownerKey,
+            @RequestHeader(value = Access.ADMIN_HEADER, required = false) String adminToken) {
+        service.deleteComment(id, ownerKey, adminToken);
     }
 
     @GetMapping("/api/letters/{id}/comments")

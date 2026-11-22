@@ -28,6 +28,9 @@ public class ChatMessage {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "owner_hash")
+    private String ownerHash;
+
     protected ChatMessage() {}
 
     public ChatMessage(String id, String space, String authorName, String visitorId, String text, Instant createdAt) {
@@ -39,7 +42,11 @@ public class ChatMessage {
         this.createdAt = createdAt;
     }
 
+    public String getOwnerHash() { return ownerHash; }
+    public void setOwnerHash(String ownerHash) { this.ownerHash = ownerHash; }
+
     public String getId() { return id; }
+    public String getSpace() { return space; }
     public String getAuthorName() { return authorName; }
     public String getVisitorId() { return visitorId; }
     public String getText() { return text; }

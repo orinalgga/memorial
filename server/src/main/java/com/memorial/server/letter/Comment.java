@@ -32,6 +32,9 @@ public class Comment {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "owner_hash")
+    private String ownerHash;
+
     protected Comment() {}
 
     public Comment(String id, String letterId, String parentId, String authorName, String visitorId, String text, Instant createdAt) {
@@ -43,6 +46,9 @@ public class Comment {
         this.text = text;
         this.createdAt = createdAt;
     }
+
+    public String getOwnerHash() { return ownerHash; }
+    public void setOwnerHash(String ownerHash) { this.ownerHash = ownerHash; }
 
     public String getId() { return id; }
     public String getLetterId() { return letterId; }
